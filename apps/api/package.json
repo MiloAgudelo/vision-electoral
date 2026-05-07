@@ -1,0 +1,25 @@
+{
+  "name": "@vision-electoral/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "lint": "eslint src",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "firebase-admin": "^13.9.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.6.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}
