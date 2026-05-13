@@ -13,7 +13,6 @@ build/
 .env.local
 .env.*.local
 apps/web/src/environments/environment.ts
-apps/web/src/environments/environment.development.ts
 
 # Android
 mobile/.gradle/
