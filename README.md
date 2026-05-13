@@ -1,10 +1,10 @@
-# 🗳️ Visión Electoral
+# Visión Electoral
 
 Sistema integral de encuestas de campo aplicado al contexto electoral. Permite a encuestadores recopilar datos en terreno desde dispositivos Android (con soporte offline), sincronizarlos con un servidor central y visualizar análisis estadísticos en tiempo real desde una plataforma web.
 
 ---
 
-## 📋 Tabla de Contenidos
+## Tabla de Contenidos
 
 - [Descripción General](#descripción-general)
 - [Arquitectura](#arquitectura)
@@ -172,7 +172,7 @@ PORT=3000
 NODE_ENV=development
 ```
 
-> ⚠️ Nunca subas el archivo `.env` al repositorio. Está incluido en `.gitignore`.
+> **Advertencia:** Nunca subas el archivo `.env` al repositorio. Está incluido en `.gitignore`.
 
 ---
 
