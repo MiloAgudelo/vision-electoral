@@ -110,6 +110,7 @@ Cuatro colecciones.
 | `text` | `string` | |
 | `type` | `enum` | `abierta` \| `cerrada` |
 | `required` | `boolean` | |
+| `multiple` | `boolean` | solo si `type='cerrada'`. `false` = opción única (radio), `true` = múltiple (checkbox). Default `false` |
 | `options` | `Option[]?` | solo si `type='cerrada'` |
 
 `Option`:
@@ -130,7 +131,7 @@ Cuatro colecciones.
 | `_id` | `ObjectId` | |
 | `submission_id` | `string` | UUID v4 generado en el dispositivo; **índice único** (idempotencia) |
 | `template_id` | `ObjectId` | |
-| `surveyor_id` | `ObjectId` | encuestador que recolectó |
+| `surveyor_id` | `ObjectId` | encuestador que **originalmente** recolectó la respuesta (capturado en mobile, no derivado del JWT del sync — protege contra cambio de sesión entre captura y envío) |
 | `zone_id` | `ObjectId` | |
 | `answers` | `Answer[]` | embebido |
 | `captured_at` | `Date` | timestamp del dispositivo al guardar local |
@@ -142,7 +143,7 @@ Cuatro colecciones.
 |---|---|---|
 | `question_id` | `string` | siempre |
 | `value` | `string?` | si la pregunta es `abierta` |
-| `selected_option_ids` | `string[]?` | si la pregunta es `cerrada` (1 elemento = opción única; N = múltiple) |
+| `selected_option_ids` | `string[]?` | si la pregunta es `cerrada`. Cardinalidad determinada por `Question.multiple` (ver R8) |
 
 **Índices**:
 
@@ -162,11 +163,14 @@ Tres tablas. Se prioriza simplicidad sobre normalización: el JSON de preguntas 
 ### `templates_cache`
 
 ```sql
-template_id   TEXT PRIMARY KEY
-name          TEXT
-questions_json TEXT          -- JSON con el array questions[] tal como vino del backend
-updated_at    INTEGER
+template_id    TEXT PRIMARY KEY
+name           TEXT
+status         TEXT             -- 'publicada' | 'archivada' (nunca se cachea 'borrador')
+questions_json TEXT              -- JSON con el array questions[] tal como vino del backend
+updated_at     INTEGER
 ```
+
+**Invalidación**: cada vez que el mobile descarga plantillas (`GET /api/survey-templates`), borrar localmente las que ya no aparezcan en la respuesta del servidor o lleguen con `status='archivada'`. Las plantillas archivadas se conservan **solo** si hay respuestas en cola que las referencian (necesarias para renderizar el formulario al revisar la cola); se purgan cuando esas respuestas se marcan `synced` o `rejected`.
 
 ### `responses` (cola de envío)
 
@@ -174,11 +178,20 @@ updated_at    INTEGER
 submission_id TEXT PRIMARY KEY  -- UUID v4 generado en el dispositivo
 template_id   TEXT
 zone_id       TEXT
-surveyor_uid  TEXT
+surveyor_uid  TEXT              -- uid del encuestador que llenó el formulario
 answers_json  TEXT              -- mismo shape que answers[] del payload
 captured_at   INTEGER
-synced        INTEGER           -- 0 pendiente | 1 sincronizado
+sync_status   TEXT              -- 'pending' | 'synced' | 'rejected'
+sync_attempts INTEGER DEFAULT 0
+last_error    TEXT              -- razón del último 'rejected' (mostrada al usuario)
+server_synced_at INTEGER        -- timestamp servidor (nullable hasta sync exitoso)
 ```
+
+`sync_status` evita reintentos infinitos:
+
+- `pending` → la cola intenta enviar.
+- `synced` → confirmado por el backend (`accepted` o `duplicated`). Sujeto a limpieza tras 7 días.
+- `rejected` → el backend devolvió la fila en `rejected[]`. **No se reintenta automáticamente**; se muestra al usuario con `last_error` y queda a su decisión re-editar o descartar.
 
 ### `session` (un único row)
 
@@ -191,9 +204,9 @@ jwt_token     TEXT
 zone_id       TEXT
 ```
 
-**Datos solo locales** (no viajan al servidor): `synced`, `jwt_token`.
+**Datos solo locales** (no viajan al servidor): `sync_status`, `sync_attempts`, `last_error`, `server_synced_at`, `jwt_token`.
 
-**Limpieza**: borrar filas de `responses` con `synced = 1` después de 7 días.
+**Limpieza**: borrar filas de `responses` con `sync_status = 'synced'` después de 7 días. Las `rejected` se conservan hasta que el usuario las elimine o re-edite.
 
 ---
 
@@ -208,6 +221,7 @@ zone_id       TEXT
   {
     "submission_id": "550e8400-e29b-41d4-a716-446655440000",
     "template_id": "65f1a2b3c4d5e6f7a8b9c0d1",
+    "surveyor_uid": "firebase-uid-del-autor-original",
     "zone_id": "65f1a2b3c4d5e6f7a8b9c0d2",
     "captured_at": "2026-05-13T14:32:11.000Z",
     "answers": [
@@ -218,7 +232,7 @@ zone_id       TEXT
 ]
 ```
 
-`surveyor_id` no viaja en el cuerpo; el backend lo deriva del JWT.
+`surveyor_uid` viaja explícitamente en el cuerpo: es el `firebase_uid` del encuestador que **originalmente capturó** la respuesta (guardado en `responses.surveyor_uid` localmente al guardar el formulario). El backend valida que coincida con el `firebase_uid` del JWT de la request **o** que el portador del JWT sea `administrador`. Esto evita que una respuesta capturada por el encuestador A pero sincronizada por el encuestador B (mismo dispositivo, cambio de sesión) quede mal atribuida.
 
 ### Response
 
@@ -275,12 +289,15 @@ En zonas pequeñas, la combinación `(zone_id, captured_at, 3-4 respuestas)` pod
 ```ts
 import { Schema, model, Types } from 'mongoose'
 
+const TIMESTAMPS = { createdAt: 'created_at', updatedAt: 'updated_at' }
+
 const QuestionSchema = new Schema({
   question_id: { type: String, required: true },
   order: Number,
   text: { type: String, required: true },
   type: { type: String, enum: ['abierta', 'cerrada'], required: true },
   required: { type: Boolean, default: false },
+  multiple: { type: Boolean, default: false },          // solo cerrada: false=radio, true=checkbox
   options: [{ option_id: String, text: String }],
 }, { _id: false })
 
@@ -290,7 +307,7 @@ export const SurveyTemplate = model('SurveyTemplate', new Schema({
   status: { type: String, enum: ['borrador', 'publicada', 'archivada'], default: 'borrador' },
   questions: [QuestionSchema],
   created_by: { type: Types.ObjectId, ref: 'User' },
-}, { timestamps: true }))
+}, { timestamps: TIMESTAMPS }))
 
 const AnswerSchema = new Schema({
   question_id: { type: String, required: true },
@@ -306,7 +323,7 @@ const SurveyResponseSchema = new Schema({
   answers: [AnswerSchema],
   captured_at: { type: Date, required: true },
   synced_at: { type: Date, default: Date.now },
-}, { timestamps: true })
+}, { timestamps: TIMESTAMPS })
 
 SurveyResponseSchema.index({ zone_id: 1, captured_at: -1 })
 SurveyResponseSchema.index({ surveyor_id: 1, captured_at: -1 })
@@ -329,6 +346,7 @@ const AnswerInput = z.object({
 const SyncResponseInput = z.object({
   submission_id: z.string().uuid(),
   template_id: z.string(),
+  surveyor_uid: z.string(),         // firebase_uid del autor original
   zone_id: z.string(),
   captured_at: z.string().datetime(),
   answers: z.array(AnswerInput).min(1),
@@ -345,16 +363,20 @@ data class ResponseEntity(
   @PrimaryKey val submissionId: String,    // UUID.randomUUID().toString()
   val templateId: String,
   val zoneId: String,
-  val surveyorUid: String,
+  val surveyorUid: String,                 // se captura al guardar; viaja al backend
   val answersJson: String,
   val capturedAt: Long,
-  val synced: Int = 0,
+  val syncStatus: String = "pending",      // pending | synced | rejected
+  val syncAttempts: Int = 0,
+  val lastError: String? = null,
+  val serverSyncedAt: Long? = null,
 )
 
 @Entity(tableName = "templates_cache")
 data class TemplateCacheEntity(
   @PrimaryKey val templateId: String,
   val name: String,
+  val status: String,                      // 'publicada' | 'archivada'
   val questionsJson: String,
   val updatedAt: Long,
 )
@@ -371,9 +393,11 @@ Toda entrada al servidor pasa por Zod antes de tocar Mongoose. Además del schem
 3. Si la pregunta es `abierta`: `value` debe venir; `selected_option_ids` ausente o vacío.
 4. Todas las preguntas con `required: true` deben tener una answer correspondiente en el payload.
 5. `template_id` debe apuntar a una plantilla con `status: 'publicada'`.
-6. `zone_id` y `surveyor_id` (derivado del JWT) deben existir y estar activos.
+6. `zone_id` debe existir y estar activo. `surveyor_uid` del payload debe (a) existir en `users` y estar activo, **y** (b) coincidir con el `firebase_uid` del JWT, o el portador del JWT debe tener `role: 'administrador'`. Si no coincide → respuesta rechazada con razón `"surveyor_mismatch"`.
+7. Si el `surveyor` resuelto tiene `role: 'encuestador'`, su `zone_id` debe coincidir con `response.zone_id`. Esto evita que un encuestador asignado a la zona A envíe respuestas marcadas en la zona B. Para `analista`/`administrador` no aplica.
+8. Si la pregunta cerrada tiene `multiple: false`, `selected_option_ids` debe contener exactamente 1 elemento. Si `multiple: true`, mínimo 1.
 
-Las validaciones 1–4 no se expresan en Zod; se hacen en el service después de cargar la plantilla.
+Las validaciones 1–4, 7 y 8 no se expresan en Zod; se hacen en el service después de cargar la plantilla y el usuario. La 6 se hace al principio (antes de tocar Mongo).
 
 ---
 
