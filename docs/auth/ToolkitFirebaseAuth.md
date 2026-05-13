@@ -25,13 +25,13 @@ npm install firebase @angular/fire
 
 El archivo con las credenciales reales **no se versiona**. Para configurar el entorno local:
 
-1. Ubica el archivo de ejemplo en `apps/web/src/environments/environment.example.ts`.
-2. Copia ese archivo como `environment.ts` (producción) o `environment.development.ts` (desarrollo):
+1. `environment.development.ts` ya está en el repositorio con valores de placeholder. Solo edítalo y reemplaza los valores `YOUR_*`.
+2. Para producción, copia el archivo de ejemplo:
    ```bash
    cp apps/web/src/environments/environment.example.ts apps/web/src/environments/environment.ts
    ```
-3. Reemplaza los valores `YOUR_*` con las credenciales reales del proyecto Firebase.  
-   Las credenciales las provee **Juan Gaitán** ([@JuanGaitanD](https://github.com/JuanGaitanD)), quien administra el proyecto Firebase.
+   y cambia `production: false` a `true`.
+3. Las credenciales reales las provee **Juan Gaitán** ([@JuanGaitanD](https://github.com/JuanGaitanD)), quien administra el proyecto Firebase.
 
 El archivo de ejemplo tiene esta forma:
 
@@ -51,18 +51,41 @@ export const environment = {
 
 ### Implementación (Angular/TypeScript)
 
+> **Nota mobile:** `signInWithPopup` falla en WebViews y navegadores móviles que bloquean
+> ventanas emergentes. Usa `signInWithRedirect` como fallback cuando detectes ese entorno.
+
 ```typescript
-import { Auth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider,
-  signInWithEmailAndPassword } from '@angular/fire/auth';
+import {
+  Auth,
+  signInWithPopup, signInWithRedirect, getRedirectResult,
+  GoogleAuthProvider, GithubAuthProvider,
+  signInWithEmailAndPassword,
+} from '@angular/fire/auth';
+
+// Detecta entornos que bloquean popups (WebViews, algunos navegadores móviles)
+const isMobile = () => /Android|iPhone|iPad/i.test(navigator.userAgent);
 
 // 1. Google
-const loginGoogle = () => signInWithPopup(this.auth, new GoogleAuthProvider());
+const loginGoogle = () => {
+  const provider = new GoogleAuthProvider();
+  return isMobile()
+    ? signInWithRedirect(this.auth, provider)
+    : signInWithPopup(this.auth, provider);
+};
 
 // 2. GitHub
-const loginGitHub = () => signInWithPopup(this.auth, new GithubAuthProvider());
+const loginGitHub = () => {
+  const provider = new GithubAuthProvider();
+  return isMobile()
+    ? signInWithRedirect(this.auth, provider)
+    : signInWithPopup(this.auth, provider);
+};
 
 // 3. Email
 const loginEmail = (email, pass) => signInWithEmailAndPassword(this.auth, email, pass);
+
+// Llama esto al iniciar la app para capturar el resultado del redirect
+const checkRedirectResult = () => getRedirectResult(this.auth);
 ```
 
 ### Documentación Oficial
@@ -78,22 +101,43 @@ const loginEmail = (email, pass) => signInWithEmailAndPassword(this.auth, email,
 
 El archivo `google-services.json` **no se versiona**. Para obtenerlo, contacta a **Juan Gaitán** ([@JuanGaitanD](https://github.com/JuanGaitanD)), quien administra el proyecto Firebase y puede compartirlo de forma segura.
 
-Una vez que lo tengas, colócalo en la raíz del módulo `app/`:
+Una vez que lo tengas, colócalo en la raíz del módulo `app/` del proyecto Android:
 
 ```
-android/
+mobile/
 └── app/
     └── google-services.json   ← aquí
 ```
 
 
-### Dependencias (`build.gradle`)
+### Plugin de Google Services
+
+El plugin transforma el `google-services.json` en recursos Android. Sin él, Firebase no se inicializa aunque las dependencias estén presentes.
+
+**`mobile/build.gradle` (nivel proyecto):**
+```gradle
+plugins {
+    id 'com.google.gms.google-services' version '4.4.x' apply false
+}
+```
+
+**`mobile/app/build.gradle` (nivel app):**
+```gradle
+plugins {
+    id 'com.google.gms.google-services'
+}
+```
+
+### Dependencias (`mobile/app/build.gradle`)
+
+> **Nota:** A partir del BoM 34.0.0 los módulos `-ktx` fueron eliminados. Usa el artefacto
+> principal directamente; Kotlin es compatible sin sufijo.
 
 ```gradle
 dependencies {
-    implementation platform('com.google.firebase:firebase-bom:32.x.x')
-    implementation 'com.google.firebase:firebase-auth-ktx'
-    implementation 'com.google.android.gms:play-services-auth:20.x.x'
+    implementation platform('com.google.firebase:firebase-bom:34.x.x')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.android.gms:play-services-auth:21.x.x'
 }
 ```
 
