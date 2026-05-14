@@ -30,7 +30,7 @@ Diseño de datos para las tres capas del sistema: backend (MongoDB Atlas), app m
 1. **Simplicidad sobre flexibilidad**: el proyecto es académico y de alcance acotado. No hay versionado de plantillas ni snapshots inmutables.
 2. **Respuestas anónimas**: `survey_responses` no almacena información identificable del encuestado. Solo del *encuestador* (para auditoría y agregados por persona-que-recolecta).
 3. **Mobile offline-first**: el dispositivo genera el identificador único de cada entrega antes de tener red. El backend es idempotente por ese identificador.
-4. **Una plantilla publicada es inmutable**: pasar a `publicada` la congela definitivamente. Si requiere cambios, se duplica como nuevo borrador y la original se archiva. Eso da inmutabilidad sin versionado explícito y cierra la ventana de carrera offline (mobile cachea ↔ admin edita ↔ sync).
+4. **Una encuesta abierta es inmutable**: pasar a `abierta` congela `questions`, `name` y `description` definitivamente. Si requiere cambios, se duplica como nuevo borrador y la original se archiva o cierra. Eso da inmutabilidad sin versionado explícito y cierra la ventana de carrera offline (mobile cachea ↔ admin edita ↔ sync).
 5. **Dos tipos de pregunta**: `abierta` (texto libre) y `cerrada` (selección de opciones). Si en el futuro se necesitan numéricas, escalas o fechas, se modelan como `abierta` con validación en el cliente.
 
 ---
