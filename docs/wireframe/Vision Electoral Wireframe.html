@@ -149,6 +149,27 @@ body { font-family: var(--font); background: var(--outer); color: var(--dark); f
 .frmrow label { display: block; font-size: 11px; color: var(--mid); margin-bottom: 4px; }
 .mactions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 
+/* ── Create survey form ───────────────────────────────────────────────── */
+.form-section { background: white; border: 1px solid var(--border); padding: 18px; margin-bottom: 16px; }
+.form-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--blue); margin-bottom: 14px; }
+.field-row { margin-bottom: 12px; }
+.field-row label { display: block; font-size: 11px; color: var(--mid); margin-bottom: 4px; font-family: var(--mono); }
+.finput { width: 100%; border: 1px solid var(--border); background: white; padding: 8px 10px; font-size: 13px; font-family: var(--font); }
+.finput:focus { outline: none; border-color: var(--blue); }
+.ftextarea { width: 100%; border: 1px solid var(--border); background: white; padding: 8px 10px; font-size: 13px; font-family: var(--font); height: 72px; resize: none; }
+.ftextarea:focus { outline: none; border-color: var(--blue); }
+.field-row-2 { display: flex; gap: 12px; margin-bottom: 12px; }
+.field-row-2 > * { flex: 1; }
+.q-item { border: 1px solid var(--border); background: var(--bg); padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; }
+.q-num { width: 22px; height: 22px; background: var(--blue); color: white; font-size: 10px; font-family: var(--mono); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+.q-body { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.q-del { border: none; background: none; color: var(--mid); cursor: pointer; font-size: 16px; padding: 0; line-height: 1; flex-shrink: 0; }
+.q-del:hover { color: var(--dark); }
+.enc-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.enc-check { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: white; padding: 5px 10px; cursor: pointer; font-size: 12px; }
+.enc-check input { cursor: pointer; }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; flex-wrap: wrap; }
+
 /* Utility */
 .hidden { display: none !important; }
 
@@ -310,6 +331,7 @@ body { font-family: var(--font); background: var(--outer); color: var(--dark); f
       <nav>
         <a class="nav-a on" id="nav-dash" onclick="wGo('dash')">Dashboard</a>
         <a class="nav-a"    id="nav-enc"  onclick="wGo('enc')">Encuestas</a>
+        <a class="nav-a admin-only hidden" id="nav-crear" onclick="wGo('crear')">Crear encuesta</a>
         <a class="nav-a admin-only hidden" id="nav-usr" onclick="wGo('usr')">Usuarios</a>
       </nav>
       <div class="sb-foot">
@@ -488,12 +510,93 @@ body { font-family: var(--font); background: var(--outer); color: var(--dark); f
           <table class="wt">
             <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Registro</th><th>Acciones</th></tr></thead>
             <tbody>
-              <tr><td>Sofía Herrera</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1d6e727b747c5d6b746e747273337e72">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>10/01/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sofía Herrera')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-              <tr><td>Carlos Medina</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="036062716f6c7043756a706a6c6d2d606c">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>15/02/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Carlos Medina')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-              <tr><td>Sandra Gómez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ea998b848e988baa9c8399838584c48985">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>20/03/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sandra Gómez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-              <tr><td>Roberto Jiménez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="15677a777067617a55637c667c7a7b3b767a">[email&#160;protected]</a></td><td><span class="sbadge">Administrador</span></td><td>05/01/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Roberto Jiménez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+              <tr><td>Sofía Herrera</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="73001c151a1233051a001a1c1d5d101c">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>10/01/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sofía Herrera')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+              <tr><td>Carlos Medina</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b9dad8cbd5d6caf9cfd0cad0d6d797dad6">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>15/02/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Carlos Medina')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+              <tr><td>Sandra Gómez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c8bba9a6acbaa988bea1bba1a7a6e6aba7">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>20/03/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sandra Gómez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+              <tr><td>Roberto Jiménez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6f1d000d0a1d1b002f19061c060001410c00">[email&#160;protected]</a></td><td><span class="sbadge">Administrador</span></td><td>05/01/2026</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Roberto Jiménez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- ── Crear Encuesta (solo Admin) ──────────────────────────── -->
+        <div class="ws" id="ws-crear">
+          <div class="shdr">Crear Encuesta</div>
+
+          <!-- Información general -->
+          <div class="form-section">
+            <div class="form-section-title">Información general</div>
+            <div class="field-row">
+              <label>Nombre de la encuesta</label>
+              <input class="finput" type="text" placeholder="Ej: Encuesta Presidencial — Bogotá Norte">
+            </div>
+            <div class="field-row">
+              <label>Descripción</label>
+              <textarea class="ftextarea" placeholder="Objetivo de la encuesta, instrucciones para el encuestador..."></textarea>
+            </div>
+            <div class="field-row-2">
+              <div>
+                <label>Zona</label>
+                <select class="wsel" style="width:100%;">
+                  <option>Seleccionar zona ▼</option>
+                  <option>Bogotá Norte</option>
+                  <option>Kennedy, Bogotá</option>
+                  <option>Laureles, Medellín</option>
+                  <option>San Antonio, Cali</option>
+                  <option>El Prado, Barranquilla</option>
+                  <option>Cabecera, Bucaramanga</option>
+                </select>
+              </div>
+              <div>
+                <label>Fecha límite</label>
+                <input class="finput" type="text" placeholder="DD/MM/AAAA">
+              </div>
+            </div>
+          </div>
+
+          <!-- Encuestadores asignados -->
+          <div class="form-section">
+            <div class="form-section-title">Encuestadores asignados</div>
+            <div class="enc-checks">
+              <label class="enc-check"><input type="checkbox" checked> Ana Rodríguez</label>
+              <label class="enc-check"><input type="checkbox" checked> Luis Vargas</label>
+              <label class="enc-check"><input type="checkbox"> María Ríos</label>
+              <label class="enc-check"><input type="checkbox"> Pedro Morales</label>
+              <label class="enc-check"><input type="checkbox"> Claudia Torres</label>
+              <label class="enc-check"><input type="checkbox"> Hernán Castillo</label>
+            </div>
+          </div>
+
+          <!-- Preguntas -->
+          <div class="form-section" id="ws-qlist">
+            <div class="form-section-title">Preguntas</div>
+
+            <div class="q-item">
+              <div class="q-num">1</div>
+              <div class="q-body">
+                <input class="finput" type="text" value="¿Cuál es el principal problema de su barrio?">
+                <select class="wsel" style="width:180px;"><option>Opción múltiple ▼</option><option>Respuesta abierta</option><option>Numérica</option></select>
+              </div>
+              <button class="q-del" title="Eliminar">×</button>
+            </div>
+
+            <div class="q-item">
+              <div class="q-num">2</div>
+              <div class="q-body">
+                <input class="finput" type="text" value="¿Qué propuestas esperaría de un candidato?">
+                <select class="wsel" style="width:180px;"><option>Respuesta abierta ▼</option><option>Opción múltiple</option><option>Numérica</option></select>
+              </div>
+              <button class="q-del" title="Eliminar">×</button>
+            </div>
+
+            <button class="btn" style="margin-top:4px;" onclick="addQuestion('ws-qlist')">+ Añadir pregunta</button>
+          </div>
+
+          <!-- Acciones -->
+          <div class="form-actions">
+            <button class="btn" onclick="wGo('enc')">Cancelar</button>
+            <button class="btn">Guardar borrador</button>
+            <button class="btn p">Publicar encuesta</button>
+          </div>
         </div>
 
       </div><!-- cwrap -->
@@ -552,6 +655,7 @@ body { font-family: var(--font); background: var(--outer); color: var(--dark); f
         <nav>
           <a class="nav-a on" id="rnav-dash" onclick="rGo('dash')">Dashboard</a>
           <a class="nav-a"    id="rnav-enc"  onclick="rGo('enc')">Encuestas</a>
+          <a class="nav-a admin-only-r hidden" id="rnav-crear" onclick="rGo('crear')">Crear encuesta</a>
           <a class="nav-a admin-only-r hidden" id="rnav-usr" onclick="rGo('usr')">Usuarios</a>
         </nav>
         <div class="r-drawer-foot">
@@ -745,12 +849,89 @@ body { font-family: var(--font); background: var(--outer); color: var(--dark); f
             <table class="wt" style="min-width:460px;">
               <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Registro</th><th>Acciones</th></tr></thead>
               <tbody>
-                <tr><td>Sofía Herrera</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="780b171e1119380e110b111716561b17">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>10/01/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sofía Herrera')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-                <tr><td>Carlos Medina</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="771416051b180437011e041e1819591418">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>15/02/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Carlos Medina')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-                <tr><td>Sandra Gómez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ddaebcb3b9afbc9dabb4aeb4b2b3f3beb2">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>20/03/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sandra Gómez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
-                <tr><td>Roberto Jiménez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ee9c818c8b9c9a81ae98879d878180c08d81">[email&#160;protected]</a></td><td><span class="sbadge">Administrador</span></td><td>05/01/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Roberto Jiménez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+                <tr><td>Sofía Herrera</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="21524e47484061574852484e4f0f424e">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>10/01/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sofía Herrera')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+                <tr><td>Carlos Medina</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="97f4f6e5fbf8e4d7e1fee4fef8f9b9f4f8">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>15/02/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Carlos Medina')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+                <tr><td>Sandra Gómez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3546545b51475475435c465c5a5b1b565a">[email&#160;protected]</a></td><td><span class="sbadge">Analista</span></td><td>20/03/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Sandra Gómez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
+                <tr><td>Roberto Jiménez</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f5879a979087819ab5839c869c9a9bdb969a">[email&#160;protected]</a></td><td><span class="sbadge">Administrador</span></td><td>05/01/26</td><td style="white-space:nowrap;"><button class="btn sm" onclick="openMod('Roberto Jiménez')">Cambiar rol</button> <button class="btn sm">Desactivar</button></td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- ── R: Crear Encuesta (solo Admin) ───────────────────────── -->
+        <div class="rs" id="rs-crear">
+          <div class="shdr" style="font-size:13px;">Crear Encuesta</div>
+
+          <!-- Info general -->
+          <div class="form-section">
+            <div class="form-section-title">Información general</div>
+            <div class="field-row">
+              <label>Nombre de la encuesta</label>
+              <input class="finput" type="text" placeholder="Ej: Encuesta Presidencial — Bogotá Norte">
+            </div>
+            <div class="field-row">
+              <label>Descripción</label>
+              <textarea class="ftextarea" placeholder="Objetivo e instrucciones..."></textarea>
+            </div>
+            <div class="field-row">
+              <label>Zona</label>
+              <select class="wsel" style="width:100%; font-size:12px;">
+                <option>Seleccionar zona ▼</option>
+                <option>Bogotá Norte</option>
+                <option>Kennedy, Bogotá</option>
+                <option>Laureles, Medellín</option>
+                <option>San Antonio, Cali</option>
+                <option>El Prado, Barranquilla</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <label>Fecha límite</label>
+              <input class="finput" type="text" placeholder="DD/MM/AAAA">
+            </div>
+          </div>
+
+          <!-- Encuestadores -->
+          <div class="form-section">
+            <div class="form-section-title">Encuestadores asignados</div>
+            <div style="display:flex; flex-direction:column; gap:7px;">
+              <label class="enc-check"><input type="checkbox" checked> Ana Rodríguez</label>
+              <label class="enc-check"><input type="checkbox" checked> Luis Vargas</label>
+              <label class="enc-check"><input type="checkbox"> María Ríos</label>
+              <label class="enc-check"><input type="checkbox"> Pedro Morales</label>
+              <label class="enc-check"><input type="checkbox"> Claudia Torres</label>
+            </div>
+          </div>
+
+          <!-- Preguntas -->
+          <div class="form-section" id="rs-qlist">
+            <div class="form-section-title">Preguntas</div>
+
+            <div class="q-item">
+              <div class="q-num">1</div>
+              <div class="q-body">
+                <input class="finput" style="font-size:12px;" type="text" value="¿Cuál es el principal problema de su barrio?">
+                <select class="wsel" style="width:100%; font-size:11px;"><option>Opción múltiple ▼</option><option>Respuesta abierta</option><option>Numérica</option></select>
+              </div>
+              <button class="q-del">×</button>
+            </div>
+
+            <div class="q-item">
+              <div class="q-num">2</div>
+              <div class="q-body">
+                <input class="finput" style="font-size:12px;" type="text" value="¿Qué propuestas esperaría de un candidato?">
+                <select class="wsel" style="width:100%; font-size:11px;"><option>Respuesta abierta ▼</option><option>Opción múltiple</option><option>Numérica</option></select>
+              </div>
+              <button class="q-del">×</button>
+            </div>
+
+            <button class="btn" style="width:100%; margin-top:4px; font-size:11px;" onclick="addQuestion('rs-qlist')">+ Añadir pregunta</button>
+          </div>
+
+          <!-- Acciones -->
+          <div class="form-actions" style="flex-direction:column; align-items:stretch;">
+            <button class="btn p" style="text-align:center;">Publicar encuesta</button>
+            <button class="btn" style="text-align:center;">Guardar borrador</button>
+            <button class="btn" style="text-align:center;" onclick="rGo('enc')">Cancelar</button>
           </div>
         </div>
 
@@ -796,8 +977,10 @@ function setRole(r) {
   document.querySelectorAll('.admin-only-r').forEach(function(el){ el.classList.toggle('hidden', r !== 'adm'); });
   // redirect if on users screen as non-admin
   if (r !== 'adm') {
-    if (document.getElementById('ws-usr').classList.contains('on')) wGo('dash');
-    if (document.getElementById('rs-usr').classList.contains('on')) rGo('dash');
+    if (document.getElementById('ws-usr').classList.contains('on') ||
+        document.getElementById('ws-crear').classList.contains('on')) wGo('dash');
+    if (document.getElementById('rs-usr').classList.contains('on') ||
+        document.getElementById('rs-crear').classList.contains('on')) rGo('dash');
   }
   if (wIn) wShowScreen(d.wDash, 'nav-dash');
   if (rIn) rShowScreen(d.rDash, 'rnav-dash');
@@ -819,7 +1002,7 @@ function wLogout() {
 // ─── WEB NAV ──────────────────────────────────────────────────────────────────
 function wGo(name) {
   if (name === 'dash') { wShowScreen(ROLES[role].wDash, 'nav-dash'); return; }
-  var map = { enc:['ws-enc','nav-enc'], usr:['ws-usr','nav-usr'] };
+  var map = { enc:['ws-enc','nav-enc'], usr:['ws-usr','nav-usr'], crear:['ws-crear','nav-crear'] };
   if (map[name]) wShowScreen(map[name][0], map[name][1]);
 }
 function wShowScreen(sid, nid) {
@@ -847,7 +1030,7 @@ function rLogout() {
 function rGo(name) {
   closeDrawer();
   if (name === 'dash') { rShowScreen(ROLES[role].rDash, 'rnav-dash'); return; }
-  var map = { enc:['rs-enc','rnav-enc'], usr:['rs-usr','rnav-usr'] };
+  var map = { enc:['rs-enc','rnav-enc'], usr:['rs-usr','rnav-usr'], crear:['rs-crear','rnav-crear'] };
   if (map[name]) rShowScreen(map[name][0], map[name][1]);
 }
 function rShowScreen(sid, nid) {
@@ -879,6 +1062,31 @@ function openMod(name) {
   document.getElementById('mod-rol').classList.remove('off');
 }
 function closeMod() { document.getElementById('mod-rol').classList.add('off'); }
+
+// ─── ADD QUESTION ─────────────────────────────────────────────────────────────
+var qCounters = {};
+function addQuestion(listId) {
+  var list = document.getElementById(listId);
+  var addBtn = list.querySelector('button.btn');
+  var existing = list.querySelectorAll('.q-item').length;
+  var n = existing + 1;
+  var item = document.createElement('div');
+  item.className = 'q-item';
+  item.innerHTML =
+    '<div class="q-num">' + n + '</div>' +
+    '<div class="q-body">' +
+      '<input class="finput" type="text" placeholder="Texto de la pregunta...">' +
+      '<select class="wsel" style="width:180px;"><option>Opción múltiple ▼</option><option>Respuesta abierta</option><option>Numérica</option></select>' +
+    '</div>' +
+    '<button class="q-del" onclick="removeQuestion(this)">×</button>';
+  list.insertBefore(item, addBtn);
+}
+function removeQuestion(btn) {
+  var list = btn.closest('[id$="-qlist"]') || btn.closest('.form-section');
+  btn.closest('.q-item').remove();
+  // renumber
+  list.querySelectorAll('.q-num').forEach(function(el, i){ el.textContent = i + 1; });
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 setView('web');
