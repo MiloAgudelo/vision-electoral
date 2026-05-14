@@ -199,4 +199,4 @@ NODE_ENV=development
 
 ## Contribuir
 
-Consulta [`CONTRIBUTING.md`](CONTRIBUTING.md) para conocer las convenciones de commits, flujo de ramas y proceso de Pull Requests.
+Consulta [`CONTRIBUTING.md`](CONTRIBUTING.md) para conocer las convenciones de commits, flujo de ramas y proceso de Pull Requests...
