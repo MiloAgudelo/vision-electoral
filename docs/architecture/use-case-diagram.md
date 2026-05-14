@@ -36,14 +36,15 @@ flowchart LR
             UC_LOGOUT(("Cerrar sesión"))
         end
 
-        %% --- Administración de plantillas ---
-        subgraph TPL["Plantillas de encuesta"]
-            UC_TPL_CREATE(("Crear plantilla<br/>(borrador)"))
-            UC_TPL_EDIT(("Editar plantilla"))
-            UC_TPL_PUBLISH(("Publicar plantilla<br/>POST /publish"))
-            UC_TPL_ARCHIVE(("Archivar plantilla"))
-            UC_TPL_DUPLICATE(("Duplicar plantilla"))
-            UC_TPL_LIST_ACTIVE(("Listar plantillas<br/>publicadas<br/>GET ?status=publicada"))
+        %% --- Administración de encuestas ---
+        subgraph TPL["Encuestas"]
+            UC_TPL_CREATE(("Crear encuesta<br/>(borrador)"))
+            UC_TPL_EDIT(("Editar encuesta"))
+            UC_TPL_OPEN(("Abrir encuesta<br/>POST /open"))
+            UC_TPL_CLOSE(("Cerrar encuesta<br/>POST /close"))
+            UC_TPL_ARCHIVE(("Archivar encuesta"))
+            UC_TPL_DUPLICATE(("Duplicar encuesta"))
+            UC_TPL_LIST_ACTIVE(("Listar encuestas<br/>abiertas<br/>GET ?status=abierta"))
             UC_TPL_VALIDATE_PII(("Validar ausencia<br/>de PII en preguntas"))
         end
 
@@ -92,7 +93,8 @@ flowchart LR
     %% Administrador
     ADM --- UC_TPL_CREATE
     ADM --- UC_TPL_EDIT
-    ADM --- UC_TPL_PUBLISH
+    ADM --- UC_TPL_OPEN
+    ADM --- UC_TPL_CLOSE
     ADM --- UC_TPL_ARCHIVE
     ADM --- UC_TPL_DUPLICATE
     ADM --- UC_USR_CRUD
@@ -104,6 +106,11 @@ flowchart LR
     ANA --- UC_STATS_ZONE
     ANA --- UC_STATS_SURV
     ANA --- UC_STATS_TPL
+
+    %% Administrador también accede a estadísticas
+    ADM --- UC_STATS_ZONE
+    ADM --- UC_STATS_SURV
+    ADM --- UC_STATS_TPL
 
     %% Encuestador (mobile)
     ENC --- UC_CACHE
@@ -129,15 +136,18 @@ flowchart LR
     UC_SYNC -. "«include»" .-> UC_VALIDATE
     UC_SYNC -. "«include»" .-> UC_IDEMP
 
-    %% Crear/editar plantilla incluye validar ausencia de PII
+    %% Crear/editar encuesta incluye validar ausencia de PII
     UC_TPL_CREATE -. "«include»" .-> UC_TPL_VALIDATE_PII
     UC_TPL_EDIT   -. "«include»" .-> UC_TPL_VALIDATE_PII
 
-    %% Si la plantilla publicada ya tiene respuestas, editar se EXTIENDE a duplicar
+    %% Si el admin intenta editar una encuesta abierta o cerrada, el flujo se extiende a duplicar
     %% (UI ofrece "Duplicar" en vez de "Editar" → 409 Conflict)
-    UC_TPL_DUPLICATE -. "«extend» (publicada con respuestas)" .-> UC_TPL_EDIT
+    UC_TPL_EDIT -. "«extend» (abierta o cerrada)" .-> UC_TPL_DUPLICATE
 
-    %% Mobile descarga plantillas activas → lista las publicadas
+    %% Cerrar encuesta puede volver a abrirse
+    UC_TPL_CLOSE -. "«extend» (reapertura)" .-> UC_TPL_OPEN
+
+    %% Mobile descarga encuestas abiertas
     UC_CACHE -. "«include»" .-> UC_TPL_LIST_ACTIVE
 
     %% Ver respuestas individuales registra auditoría
@@ -162,8 +172,8 @@ flowchart LR
 | Actor | Tipo | Rol en el sistema |
 |---|---|---|
 | 👤 Encuestador | humano, primario | Captura respuestas en campo desde mobile, sincroniza cuando hay red |
-| 👤 Analista | humano, primario | Consulta agregados; **no** accede a respuestas individuales |
-| 👤 Administrador | humano, primario | Gestiona plantillas, usuarios, zonas; puede ver respuestas individuales con auditoría |
+| 👤 Analista | humano, primario | Asignado a una universidad (zona); consulta encuestas y respuestas de su zona; genera reportes |
+| 👤 Administrador | humano, primario | Sin zona asignada; gestiona encuestas, usuarios, zonas (universidades); ve todo con auditoría |
 | 📱 App Mobile | sistema, secundario | Agente que ejecuta tareas locales (UUID, encolar, limpiar, sincronizar) |
 | 🔐 Firebase Auth | sistema, secundario, externo | Proveedor de identidad (Google OAuth) — el backend verifica el `idToken` y emite JWT propio |
 
@@ -172,22 +182,24 @@ flowchart LR
 | Caso de uso | Encuestador | Analista | Administrador |
 |---|---|---|---|
 | Iniciar sesión / Cerrar sesión | ✅ | ✅ | ✅ |
-| Crear / editar / publicar / archivar / duplicar plantilla | ❌ | ❌ | ✅ |
-| Gestionar usuarios y zonas | ❌ | ❌ | ✅ |
+| Crear / editar / abrir / cerrar / archivar / duplicar encuesta | ❌ | ❌ | ✅ |
+| Gestionar usuarios y zonas (universidades) | ❌ | ❌ | ✅ |
 | Capturar respuesta (mobile) | ✅ | ❌ | ❌ |
 | Sincronizar respuestas | ✅ | ❌ | ❌ |
-| Ver estadísticas por zona / encuestador / plantilla | ❌ | ✅ | ✅ |
-| Ver respuestas individuales | ❌ | ❌ | ✅ (con auditoría) |
+| Ver estadísticas / respuestas de **su universidad** | ❌ | ✅ | ✅ (todas) |
+| Ver respuestas individuales | ❌ | ✅ (su zona) | ✅ (con auditoría) |
+| Generar reportes (PDF / pantalla) | ❌ | ✅ (su zona) | ✅ (todas) |
 
 ## Relaciones notables
 
 - **`Capturar respuesta` «include» `Generar submission_id` + `Encolar`** — la captura siempre genera UUID v4 en el dispositivo y deja la fila en `sync_status='pending'`. Sin esto no hay idempotencia ni offline.
 - **`Sincronizar` «include» `Validar` + `Idempotencia`** — el backend corre Zod y las reglas R1–R8 antes de insertar, y el índice único en `submission_id` garantiza que reintentos no dupliquen.
-- **`Duplicar plantilla` «extend» `Editar plantilla`** — si el admin intenta editar una plantilla publicada con respuestas, el endpoint responde 409 y la UI ofrece duplicar en su lugar.
-- **`Crear/Editar plantilla` «include» `Validar ausencia de PII`** — la web advierte si el texto de una pregunta contiene patrones tipo "nombre, cédula, teléfono, email".
-- **`Ver respuestas individuales` «include» `Registrar auditoría`** — el admin no puede acceder sin dejar rastro.
+- **`Editar encuesta` «extend» `Duplicar encuesta`** — si el admin intenta editar una encuesta `abierta` o `cerrada`, el endpoint responde 409 y la UI ofrece duplicar en su lugar. Solo `borrador` es editable.
+- **`Cerrar encuesta` «extend» `Abrir encuesta`** — ciclo de vida reversible: `abierta ↔ cerrada`. Solo `archivada` es estado final.
+- **`Crear/Editar encuesta` «include» `Validar ausencia de PII`** — la web advierte si el texto de una pregunta contiene patrones tipo "nombre, cédula, teléfono, email".
+- **`Ver respuestas individuales` «include» `Registrar auditoría`** — el admin no puede acceder sin dejar rastro. El analista accede solo a las de su universidad.
 
 ## Referencias
 
 - Modelos de datos: [`../database/schema.md`](../database/schema.md).
-- Diagrama de clases: [`./class-diagram.md`](./class-diagram.md).
+- Diagrama de componentes: [`./component-diagram.md`](./component-diagram.md).

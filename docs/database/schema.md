@@ -11,6 +11,11 @@ Diseño de datos para las tres capas del sistema: backend (MongoDB Atlas), app m
 - [Principios](#principios)
 - [Diagrama de relaciones](#diagrama-de-relaciones)
 - [MongoDB (servidor)](#mongodb-servidor)
+  - [users](#users)
+  - [zones](#zones)
+  - [survey\_templates](#survey_templates)
+  - [survey\_responses](#survey_responses)
+  - [audit\_logs](#audit_logs)
 - [SQLite / Room (mobile)](#sqlite--room-mobile)
 - [Contrato de sincronización](#contrato-de-sincronización)
 - [Anonimato](#anonimato)
@@ -37,14 +42,18 @@ Diseño de datos para las tres capas del sistema: backend (MongoDB Atlas), app m
                           │    users     │
                           │ (roles, zona)│
                           └──────┬───────┘
-                                 │ surveyor_id
-                                 ▼
+                          admin_uid│  │surveyor_id
+                                  ▼  ▼
    ┌──────────┐           ┌─────────────────┐         ┌────────────────────┐
    │  zones   │◄──zone_id─│ survey_responses│──tpl───►│  survey_templates  │
    └──────────┘           │   (anónimas)    │         │ (questions embed)  │
                           └─────────────────┘         └────────────────────┘
                                   ▲
-                                  │
+                                  │ resource_id
+                          ┌───────┴───────┐
+                          │  audit_logs   │
+                          │ (accesos adm) │
+                          └───────────────┘
                           submission_id (UUID v4
                           generado en el dispositivo,
                           clave de idempotencia)
@@ -63,7 +72,7 @@ session  (sesión actual del encuestador)
 
 ## MongoDB (servidor)
 
-Cuatro colecciones.
+Cinco colecciones.
 
 ### `users`
 
@@ -74,17 +83,19 @@ Cuatro colecciones.
 | `email` | `string` | único |
 | `name` | `string` | |
 | `role` | `enum` | `encuestador` \| `analista` \| `administrador` |
-| `zone_id` | `ObjectId?` | zona asignada (solo encuestador) |
+| `zone_id` | `ObjectId?` | zona asignada (encuestador y analista; administrador no tiene zona) |
 | `created_at`, `updated_at` | `Date` | |
 
 **Índices**: `firebase_uid` único, `email` único, `role`.
 
 ### `zones`
 
+Cada zona representa una universidad. Encuestadores y analistas están asignados a una sola zona; el administrador no pertenece a ninguna.
+
 | Campo | Tipo | Notas |
 |---|---|---|
 | `_id` | `ObjectId` | |
-| `name` | `string` | único |
+| `name` | `string` | nombre de la universidad; único |
 | `created_at` | `Date` | |
 
 **Índices**: `name` único.
@@ -96,10 +107,10 @@ Cuatro colecciones.
 | `_id` | `ObjectId` | |
 | `name` | `string` | |
 | `description` | `string?` | |
-| `status` | `enum` | `borrador` \| `publicada` \| `archivada` |
+| `status` | `enum` | `borrador` \| `abierta` \| `cerrada` \| `archivada` |
 | `questions` | `Question[]` | embebido |
 | `created_by` | `ObjectId` | `users._id` |
-| `published_at` | `Date?` | timestamp en que pasó a `publicada` por primera vez; inmutable a partir de ahí |
+| `opened_at` | `Date?` | timestamp en que pasó a `abierta` por primera vez; las preguntas se congelan a partir de aquí |
 | `archived_at` | `Date?` | timestamp en que pasó a `archivada` |
 | `created_at`, `updated_at` | `Date` | `updated_at` solo cambia mientras está en `borrador` |
 
@@ -124,9 +135,21 @@ Cuatro colecciones.
 
 **Índices**: `status`.
 
-**Regla de inmutabilidad**: una plantilla con `status = 'publicada'` es **inmutable** en sus `questions`, `name` y `description`, tenga respuestas o no. El único cambio de estado permitido desde `publicada` es a `archivada`. El endpoint de edición responde **409 Conflict** con el mensaje `"plantilla publicada; duplíquela en lugar de editarla"`. La UI de admin muestra "Duplicar" en vez de "Editar".
+**Ciclo de vida:**
 
-> Esta inmutabilidad cierra la ventana de carrera offline: si un mobile descargó la versión publicada y captura respuestas sin red, el backend siempre las puede validar contra esa misma versión porque nadie pudo haberla mutado mientras tanto. Sin necesidad de versionado explícito.
+```
+borrador ──→ abierta ──→ cerrada ──→ archivada
+                 ↑____________│
+```
+
+- `borrador`: solo visible para el admin; editable.
+- `abierta`: visible en mobile para los encuestadores de todas las universidades; acepta respuestas.
+- `cerrada`: no visible en mobile; no acepta respuestas nuevas. Puede volver a `abierta`.
+- `archivada`: estado final, no reversible.
+
+**Regla de inmutabilidad**: al pasar a `abierta` por primera vez, `questions`, `name` y `description` se congelan. Ni `abierta` ni `cerrada` se pueden editar. El endpoint de edición responde **409 Conflict** con el mensaje `"encuesta abierta o cerrada; duplíquela para modificarla"`. La UI de admin muestra "Duplicar" en vez de "Editar".
+
+> Esta inmutabilidad cierra la ventana de carrera offline: si un mobile descargó la encuesta abierta y captura respuestas sin red, el backend siempre puede validarlas contra esa misma versión. Sin necesidad de versionado explícito.
 
 ### `survey_responses`
 
@@ -158,6 +181,23 @@ Cuatro colecciones.
 
 > **El documento no contiene PII del encuestado**. Ver sección [Anonimato](#anonimato).
 
+### `audit_logs`
+
+Registra cada acceso del administrador a respuestas individuales. Solo de escritura desde el backend; nunca se expone en bulk al cliente.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `_id` | `ObjectId` | |
+| `admin_uid` | `ObjectId` | `users._id` del administrador que accedió |
+| `action` | `string` | `"read_response"` (extensible a `"export"`, etc.) |
+| `resource` | `string` | Colección afectada: `"survey_responses"` |
+| `resource_id` | `ObjectId?` | `_id` del documento accedido (si aplica) |
+| `query_params` | `object?` | Filtros usados (ej. `{ zone_id, date_range }`) para accesos por lote |
+| `timestamp` | `Date` | Momento del acceso (indexado) |
+| `ip` | `string?` | IP del servidor de origen (no del encuestado) |
+
+**Índices**: `{ admin_uid: 1, timestamp: -1 }`, `timestamp`.
+
 ---
 
 ## SQLite / Room (mobile)
@@ -169,12 +209,14 @@ Tres tablas. Se prioriza simplicidad sobre normalización: el JSON de preguntas 
 ```sql
 template_id    TEXT PRIMARY KEY
 name           TEXT
-status         TEXT             -- 'publicada' | 'archivada' (nunca se cachea 'borrador')
-questions_json TEXT              -- JSON con el array questions[] tal como vino del backend
+status         TEXT             -- 'abierta' (nunca se cachea 'borrador', 'cerrada' ni 'archivada')
+questions_json TEXT             -- JSON con el array questions[] tal como vino del backend
 updated_at     INTEGER
 ```
 
-**Invalidación**: cada vez que el mobile descarga plantillas (`GET /api/survey-templates`), borrar localmente las que ya no aparezcan en la respuesta del servidor o lleguen con `status='archivada'`. Las plantillas archivadas se conservan **solo** si hay respuestas en cola que las referencian (necesarias para renderizar el formulario al revisar la cola); se purgan cuando esas respuestas se marcan `synced` o `rejected`.
+**Invalidación**: el mobile descarga solo encuestas con `status='abierta'` (`GET /api/surveys?status=abierta`). En cada descarga se eliminan del cache las entradas que ya no aparezcan en la respuesta del servidor (fueron cerradas o archivadas mientras el dispositivo estaba offline).
+
+**Caso offline con encuesta cerrada**: si el dispositivo tenía respuestas `pending` de una encuesta que se cerró antes del sync, el servidor las rechazará con razón `"survey_closed"`. La app las marcará como `rejected` y notificará al usuario. Por eso las entradas de `templates_cache` se conservan hasta que todas las filas `pending` que las referencian pasen a `synced` o `rejected`; solo entonces se purgan.
 
 ### `responses` (cola de envío)
 
@@ -205,7 +247,7 @@ email         TEXT
 name          TEXT
 role          TEXT
 jwt_token     TEXT
-zone_id       TEXT
+zone_id       TEXT    -- nullable: analista y administrador no tienen zona asignada
 ```
 
 **Datos solo locales** (no viajan al servidor): `sync_status`, `sync_attempts`, `last_error`, `server_synced_at`, `jwt_token`.
@@ -315,9 +357,11 @@ const QuestionSchema = new Schema({
 export const SurveyTemplate = model('SurveyTemplate', new Schema({
   name: { type: String, required: true },
   description: String,
-  status: { type: String, enum: ['borrador', 'publicada', 'archivada'], default: 'borrador' },
+  status: { type: String, enum: ['borrador', 'abierta', 'cerrada', 'archivada'], default: 'borrador' },
   questions: [QuestionSchema],
   created_by: { type: Types.ObjectId, ref: 'User' },
+  opened_at: Date,    // se setea la primera vez que pasa a 'abierta'; inmutable desde entonces
+  archived_at: Date,
 }, { timestamps: TIMESTAMPS }))
 
 const AnswerSchema = new Schema({
@@ -326,6 +370,7 @@ const AnswerSchema = new Schema({
   selected_option_ids: [String],
 }, { _id: false })
 
+// Sin timestamps automáticos: synced_at ya cumple el rol de created_at del servidor.
 const SurveyResponseSchema = new Schema({
   submission_id: { type: String, required: true, unique: true },
   template_id: { type: Types.ObjectId, ref: 'SurveyTemplate', required: true },
@@ -334,7 +379,7 @@ const SurveyResponseSchema = new Schema({
   answers: [AnswerSchema],
   captured_at: { type: Date, required: true },
   synced_at: { type: Date, default: Date.now },
-}, { timestamps: TIMESTAMPS })
+})
 
 SurveyResponseSchema.index({ zone_id: 1, captured_at: -1 })
 SurveyResponseSchema.index({ surveyor_id: 1, captured_at: -1 })
@@ -348,6 +393,8 @@ export const SurveyResponse = model('SurveyResponse', SurveyResponseSchema)
 ```ts
 import { z } from 'zod'
 
+const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'ObjectId inválido')
+
 const AnswerInput = z.object({
   question_id: z.string(),
   value: z.string().max(2000).optional(),
@@ -356,19 +403,24 @@ const AnswerInput = z.object({
 
 const SyncResponseInput = z.object({
   submission_id: z.string().uuid(),
-  template_id: z.string(),
+  template_id: objectId,
   surveyor_uid: z.string(),         // firebase_uid del autor original
-  zone_id: z.string(),
+  zone_id: objectId,
   captured_at: z.string().datetime(),
   answers: z.array(AnswerInput).min(1),
 })
 
+// El mobile envía en lotes de máximo 200. Si la cola supera ese límite,
+// la app itera en múltiples llamadas hasta vaciarla.
 export const SyncBody = z.array(SyncResponseInput).min(1).max(200)
 ```
 
 ### Room (Kotlin, esquema indicativo)
 
 ```kotlin
+// capturedAt se guarda como epoch en ms (System.currentTimeMillis()).
+// Al armar el payload del sync se convierte a ISO 8601:
+//   Instant.ofEpochMilli(capturedAt).toString()  → "2026-05-13T14:32:11.000Z"
 @Entity(tableName = "responses")
 data class ResponseEntity(
   @PrimaryKey val submissionId: String,    // UUID.randomUUID().toString()
@@ -376,7 +428,7 @@ data class ResponseEntity(
   val zoneId: String,
   val surveyorUid: String,                 // se captura al guardar; viaja al backend
   val answersJson: String,
-  val capturedAt: Long,
+  val capturedAt: Long,                    // epoch ms → convertir a ISO al sincronizar
   val syncStatus: String = "pending",      // pending | synced | rejected
   val syncAttempts: Int = 0,
   val lastError: String? = null,
@@ -403,7 +455,7 @@ Toda entrada al servidor pasa por Zod antes de tocar Mongoose. Además del schem
 2. Si la pregunta es `cerrada`: `selected_option_ids` no vacío y todos los IDs deben pertenecer a `question.options[].option_id`. `value` debe venir vacío.
 3. Si la pregunta es `abierta`: `value` debe venir; `selected_option_ids` ausente o vacío.
 4. Todas las preguntas con `required: true` deben tener una answer correspondiente en el payload.
-5. `template_id` debe apuntar a una plantilla con `status: 'publicada'`.
+5. `template_id` debe apuntar a una encuesta con `status: 'abierta'`. Si está `cerrada` o `archivada`, la respuesta se rechaza con razón `"survey_closed"`.
 6. `zone_id` debe existir y estar activo. `surveyor_uid` del payload debe (a) existir en `users` y estar activo, **y** (b) coincidir con el `firebase_uid` del JWT, o el portador del JWT debe tener `role: 'administrador'`. Si no coincide → respuesta rechazada con razón `"surveyor_mismatch"`.
 7. Si el `surveyor` resuelto tiene `role: 'encuestador'`, su `zone_id` debe coincidir con `response.zone_id`. Esto evita que un encuestador asignado a la zona A envíe respuestas marcadas en la zona B. Para `analista`/`administrador` no aplica.
 8. Si la pregunta cerrada tiene `multiple: false`, `selected_option_ids` debe contener exactamente 1 elemento. Si `multiple: true`, mínimo 1.
@@ -419,8 +471,9 @@ Las validaciones 1–4, 7 y 8 no se expresan en Zod; se hacen en el service desp
 | API solo tiene `GET /salud`; faltan módulos `auth`, `surveys`, `users`, `zones`, `stats` | [apps/api/src/index.ts](../../apps/api/src/index.ts) | Crear scaffolding por módulo (router, controller, service, model, validator Zod) |
 | No hay conexión Mongoose configurada | `apps/api/src/config/` (no existe) | Crear `config/mongoose.ts` con `mongoose.connect(MONGODB_URI)` y manejo de eventos |
 | `mobile/AGENTS.md` describe `SurveyEntity` con `respondent`, `answers JSON` plano y **sin** `template_id` | [mobile/AGENTS.md](../../mobile/AGENTS.md) | Actualizar al esquema definido aquí: `submission_id`, `template_id`, sin `respondent` |
-| No existe endpoint para que mobile descargue plantillas activas | [apps/api/AGENTS.md](../../apps/api/AGENTS.md) tabla de endpoints | Agregar `GET /api/survey-templates?status=publicada` |
-| Falta endpoint admin para publicar plantilla | igual | Agregar `POST /api/survey-templates/:id/publish` |
+| No existe endpoint para que mobile descargue encuestas abiertas | [apps/api/AGENTS.md](../../apps/api/AGENTS.md) tabla de endpoints | Agregar `GET /api/surveys?status=abierta` |
+| Faltan endpoints de ciclo de vida de encuesta | igual | Agregar `POST /api/surveys/:id/open`, `POST /api/surveys/:id/close`, `POST /api/surveys/:id/archive` |
 | Idempotencia mencionada como requisito pero sin definir clave | [apps/api/AGENTS.md](../../apps/api/AGENTS.md) línea de "Notas importantes" | Documentar `submission_id` como clave de idempotencia |
 | Formato de respuesta del sync sin definir | [mobile/AGENTS.md](../../mobile/AGENTS.md) sección "Sincronización" | Documentar `{accepted, duplicated, rejected}` |
 | `packages/shared-types/` vacío | `packages/shared-types/` | Exportar enums (`UserRole`, `QuestionType`, `TemplateStatus`) y tipos derivados de los schemas Zod para compartir entre `apps/web` y `apps/api` |
+| Colección `audit_logs` sin implementar | `apps/api/src/middleware/` | Crear middleware `audit.ts` que inserte en `audit_logs` al acceder a respuestas individuales desde `stats/`; conectar a `MOD_STATS` |

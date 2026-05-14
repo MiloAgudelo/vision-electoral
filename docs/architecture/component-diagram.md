@@ -73,7 +73,7 @@ flowchart LR
             MOD_AUTH[["auth/<br/>login, refresh, me"]]
             MOD_USERS[["users/<br/>CRUD + asignar zona"]]
             MOD_ZONES[["zones/<br/>CRUD"]]
-            MOD_TPL[["surveys/templates<br/>CRUD · publish · duplicate<br/>(publicada = inmutable)"]]
+            MOD_TPL[["surveys/templates<br/>CRUD · open · close · archive · duplicate<br/>(abierta/cerrada = inmutable)"]]
             MOD_SYNC[["surveys/sync<br/>POST /api/surveys/sync<br/>(R1–R8, idempotencia con<br/>verificación de payload)"]]
             MOD_STATS[["stats/<br/>by-zone · by-surveyor ·<br/>by-template"]]
         end
@@ -100,8 +100,9 @@ flowchart LR
         direction LR
         DB_U[("users")]
         DB_Z[("zones")]
-        DB_T[("survey_templates<br/>questions[] embebido<br/>published_at / archived_at")]
+        DB_T[("survey_templates<br/>questions[] embebido<br/>opened_at / archived_at")]
         DB_R[("survey_responses<br/>answers[] embebido<br/>submission_id ÚNICO")]
+        DB_AUDIT[("audit_logs<br/>admin_uid · resource_id<br/>action · timestamp")]
     end
 
     EXT_FB([🔐 Firebase Authentication]):::ext
@@ -127,7 +128,7 @@ flowchart LR
 
     %% Mobile → externos
     M_AUTH -- "ID token" --> EXT_FB
-    M_HTTP -- "GET /api/survey-templates?status=publicada" --> A_ENTRY
+    M_HTTP -- "GET /api/surveys?status=abierta" --> A_ENTRY
     M_HTTP -- "POST /api/surveys/sync  [Bearer JWT]<br/>(payload incluye surveyor_uid)" --> A_ENTRY
 
     %% ============================================================
@@ -139,24 +140,27 @@ flowchart LR
     W_AUTH -- "ID token" --> EXT_FB
 
     %% Web → API
-    W_HTTP -- "REST /api/survey-templates (CRUD, publish)" --> A_ENTRY
+    W_HTTP -- "REST /api/surveys (CRUD, open, close, archive)" --> A_ENTRY
     W_HTTP -- "REST /api/users, /api/zones" --> A_ENTRY
     W_HTTP -- "GET /api/stats/by-zone · by-surveyor" --> A_ENTRY
 
     %% ============================================================
     %% API — pipeline interno
     %% ============================================================
+    %% Rutas públicas (login, /salud) — no pasan por MW_JWT
+    A_ENTRY -- "POST /auth/login<br/>GET /salud" --> MOD_AUTH
+
+    %% Rutas protegidas
     A_ENTRY --> MW_JWT
     MW_JWT  --> MW_RBAC
     MW_RBAC --> MW_ZOD
-    MW_ZOD  --> MOD_AUTH
     MW_ZOD  --> MOD_USERS
     MW_ZOD  --> MOD_ZONES
     MW_ZOD  --> MOD_TPL
     MW_ZOD  --> MOD_SYNC
     MW_ZOD  --> MOD_STATS
-    MOD_TPL  --> MW_AUDIT
-    MOD_SYNC --> MW_AUDIT
+    %% Auditoría: solo al acceder a respuestas individuales (rol administrador)
+    MOD_STATS --> MW_AUDIT
 
     %% Módulos → infraestructura
     MOD_AUTH  --> INF_MONGOOSE
@@ -177,6 +181,7 @@ flowchart LR
     INF_MONGOOSE --> DB_Z
     INF_MONGOOSE --> DB_T
     INF_MONGOOSE --> DB_R
+    MW_AUDIT --> DB_AUDIT
     MOD_SYNC -. "insertMany(ordered:false)<br/>E11000 → comparar payload:<br/>match → duplicated<br/>diff → rejected" .-> DB_R
 
     %% ============================================================
@@ -195,7 +200,7 @@ flowchart LR
     %% ============================================================
     N1["📝 Idempotencia: submission_id (UUID v4)<br/>generado en el dispositivo, índice único en DB.<br/>E11000 con payload distinto → rejected (no duplicated)."]:::note
     N2["📝 Anonimato: survey_responses NO contiene PII.<br/>El analista solo ve agregados; admin ve individuales<br/>y queda registro en auditoría."]:::note
-    N3["📝 Plantilla publicada es INMUTABLE (tenga o no respuestas).<br/>Edición → 409 Conflict; la web ofrece 'Duplicar'."]:::note
+    N3["📝 Encuesta abierta o cerrada es INMUTABLE.<br/>borrador→abierta↔cerrada→archivada.<br/>Edición → 409 Conflict; la web ofrece 'Duplicar'."]:::note
 
     MOD_SYNC -.- N1
     MOD_STATS -.- N2
@@ -234,18 +239,18 @@ flowchart LR
 
 - **Mobile** (azul): Android nativo en Kotlin. UI con Jetpack Compose, persistencia local con Room (3 tablas: `templates_cache`, `responses`, `session`). El `SyncEngine` corre en WorkManager con backoff y reintentos automáticos para `sync_status='pending'`.
 - **Web** (verde): SPA Angular para roles administrador y analista. No tiene formularios de captura; eso es exclusivo del mobile.
-- **API** (rojo): Express + Mongoose. Pipeline `jwt → rbac → validator (Zod) → módulo de dominio → mongoose → MongoDB`. El middleware de auditoría se activa solo en módulos que tocan respuestas individuales (`surveys/sync`, `surveys/templates`).
+- **API** (rojo): Express + Mongoose. Rutas públicas (`POST /auth/login`, `GET /salud`) conectan directo al módulo sin pasar por `MW_JWT`. El resto sigue el pipeline `jwt → rbac → validator (Zod) → módulo de dominio → mongoose → MongoDB`. El middleware de auditoría se activa únicamente al consultar respuestas individuales desde `stats/` (solo rol administrador).
 - **Shared types** (morado): `packages/shared-types/` exporta enums y schemas Zod consumidos por web y api. Mobile **no** lo consume — replica los enums en Kotlin a mano.
+- **Zonas**: cada zona representa una universidad. Encuestadores y analistas pertenecen a una sola zona; el administrador no tiene zona.
 - **MongoDB Atlas y Firebase Auth** (gris/amarillo): servicios externos. Firebase emite el `idToken`; el backend lo verifica con Admin SDK y emite su propio JWT.
 
 ## Dependencias críticas
 
 - `MOD_SYNC` ↔ `DB_R`: la única ruta donde se aplica la idempotencia con comparación de payload (E11000 + diff de campos clave). Si esto falla, hay riesgo de aceptar `submission_id` reusados con contenido distinto como "duplicado" silencioso.
-- `MW_JWT` → todos los módulos: cualquier endpoint protegido pasa por aquí. El portador del JWT se inyecta en `req` como `firebase_uid`; los módulos lo comparan con `surveyor_uid` del payload (regla R6 del schema).
+- `MW_JWT` → módulos protegidos: `POST /auth/login` y `GET /salud` quedan fuera del pipeline de autenticación. El resto de endpoints pasa por aquí. El portador del JWT se inyecta en `req` como `firebase_uid`; los módulos lo comparan con `surveyor_uid` del payload (regla R6 del schema).
 - `SH_ZOD` ↔ `MW_ZOD` ↔ `W_HTTP`: contrato de tipos que mantiene web y api alineados. Si cambia un DTO, el typecheck rompe en ambas apps al mismo tiempo.
 
 ## Referencias
 
 - Modelos de datos: [`../database/schema.md`](../database/schema.md).
-- Diagrama de clases: [`./class-diagram.md`](./class-diagram.md).
 - Diagrama de casos de uso: [`./use-case-diagram.md`](./use-case-diagram.md).
