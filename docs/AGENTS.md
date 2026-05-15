@@ -16,7 +16,8 @@ Toda la documentación técnica del proyecto **Visión Electoral**. No hay códi
 docs/
 ├── architecture/         # Diagramas de arquitectura general, componentes y casos de uso
 ├── api/                  # Especificación de endpoints (OpenAPI / colección Postman)
-└── database/             # Esquemas de MongoDB (colecciones) y SQLite (entidades Room)
+├── database/             # Esquemas de MongoDB (colecciones) y SQLite (entidades Room)
+└── requirements/         # SRS (IEEE 830): requerimientos funcionales y no funcionales
 ```
 
 ---
@@ -45,6 +46,12 @@ Formatos aceptados: `.png`, `.svg`, `.drawio`, `.puml` (PlantUML).
 - Esquema de SQLite: tablas, columnas, tipos y relaciones (para Room).
 - Estrategia de limpieza y deduplicación de datos.
 
+### `requirements/`
+
+- Documento SRS (Software Requirements Specification) según IEEE 830-1998.
+- Requerimientos funcionales (RF) y no funcionales (RNF), casos de uso narrativos, interfaces externas y anexos.
+- Formato: `.docx` (contiene imágenes y tablas; no se convierte a Markdown para preservar el formato).
+
 ---
 
 ## Convención de nombres de archivos
@@ -64,6 +71,9 @@ api/
 database/
   mongodb-schema.md
   sqlite-schema.md
+
+requirements/
+  SRS_Vision_Electoral.docx
 ```
 
 ---
