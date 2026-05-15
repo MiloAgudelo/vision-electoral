@@ -106,8 +106,10 @@
         .scard {
           background: white; border: 1px solid var(--border);
           padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+          width: 100%; text-align: left; font-family: var(--font);
         }
         .scard:active { border-color: var(--blue); }
+        .scard:focus { outline: 2px solid var(--blue); outline-offset: 2px; }
         .scard-t { font-size: 13px; font-weight: 600; color: var(--dark); margin-bottom: 3px; }
         .scard-m { font-size: 11px; color: var(--mid); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
         .scard-prog { display: flex; align-items: center; gap: 8px; }
@@ -269,32 +271,32 @@
                 <div class="sbody" style="padding-top:0;">
                     <div class="sect">Encuestas asignadas</div>
 
-                    <div class="scard" onclick="openForm('Encuesta Presidencial 2026','Kennedy, Bogotá')">
+                    <button class="scard" onclick="openForm('Encuesta Presidencial 2026','Kennedy, Bogotá')" aria-label="Abrir encuesta Presidencial 2026, Kennedy, Bogotá">
                         <div class="scard-t">Encuesta Presidencial 2026</div>
                         <div class="scard-m"><span>Kennedy, Bogotá</span><span class="badge">En progreso</span></div>
                         <div class="scard-prog">
                             <div class="prog-bg"><div class="prog-fill" style="width:47%"></div></div>
                             <span class="prog-lbl">7 / 15 hoy</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="scard" onclick="openForm('Encuesta Local Bogotá','Ciudad Bolívar, Bogotá')">
+                    <button class="scard" onclick="openForm('Encuesta Local Bogotá','Ciudad Bolívar, Bogotá')" aria-label="Abrir encuesta Local Bogotá, Ciudad Bolívar, Bogotá">
                         <div class="scard-t">Encuesta Local Bogotá</div>
                         <div class="scard-m"><span>Ciudad Bolívar, Bogotá</span><span class="badge">En progreso</span></div>
                         <div class="scard-prog">
                             <div class="prog-bg"><div class="prog-fill" style="width:30%"></div></div>
                             <span class="prog-lbl">3 / 10 hoy</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="scard" onclick="openForm('Seguimiento Electoral','Chapinero, Bogotá')">
+                    <button class="scard" onclick="openForm('Seguimiento Electoral','Chapinero, Bogotá')" aria-label="Abrir encuesta Seguimiento Electoral, Chapinero, Bogotá">
                         <div class="scard-t">Seguimiento Electoral</div>
                         <div class="scard-m"><span>Chapinero, Bogotá</span><span class="badge">Pendiente</span></div>
                         <div class="scard-prog">
                             <div class="prog-bg"><div class="prog-fill" style="width:0%"></div></div>
                             <span class="prog-lbl">0 / 8 hoy</span>
                         </div>
-                    </div>
+                    </button>
 
 
                 </div>
@@ -507,7 +509,7 @@
                         <div>
                             <div style="font-weight:700; font-size:14px;">Ana Rodríguez</div>
                             <span class="badge" style="display:inline-block; margin-top:4px;">ENCUESTADORA</span>
-                            <div style="font-size:11px; color:var(--mid); margin-top:4px;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f9989798d78b969d8b909e8c9c83b98f908a909697d79a96">[email&#160;protected]</a></div>
+                            <div style="font-size:11px; color:var(--mid); margin-top:4px;"><a href="mailto:ana.rodriguez@visionelectoral.co">ana.rodriguez@visionelectoral.co</a></div>
                         </div>
                     </div>
                     <div class="sect">Estadísticas personales</div>
@@ -532,7 +534,7 @@
     </div><!-- pbody -->
 </div><!-- pframe -->
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
     // ─── STATE ────────────────────────────────────────────────────────────────
     var fStep = 0, fTotal = 5;
     var STEP_LABELS = [
@@ -558,6 +560,28 @@
       document.getElementById('form-title').textContent = title;
       document.getElementById('form-zone').textContent  = zone;
       fStep = 0;
+
+      // Clear all form inputs and state to prevent data leak
+      var formEl = document.getElementById('ms-form');
+      if (formEl) {
+        // Reset text inputs
+        formEl.querySelectorAll('input[type="text"], input[type="number"]').forEach(function(inp) {
+          inp.value = '';
+        });
+        // Reset textareas
+        formEl.querySelectorAll('textarea').forEach(function(ta) {
+          ta.value = '';
+        });
+        // Uncheck all radios
+        formEl.querySelectorAll('input[type="radio"]').forEach(function(r) {
+          r.checked = false;
+        });
+        // Reset scale buttons
+        formEl.querySelectorAll('.scale-btn').forEach(function(sb) {
+          sb.classList.remove('sel');
+        });
+      }
+
       renderStep();
       document.querySelectorAll('.ms').forEach(function(s){ s.classList.remove('on'); });
       document.getElementById('ms-form').classList.add('on');
