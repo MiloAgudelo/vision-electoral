@@ -439,7 +439,7 @@ data class ResponseEntity(
 data class TemplateCacheEntity(
   @PrimaryKey val templateId: String,
   val name: String,
-  val status: String,                      // 'publicada' | 'archivada'
+  val status: String,                      // siempre 'abierta' (mobile solo descarga encuestas abiertas)
   val questionsJson: String,
   val updatedAt: Long,
 )
