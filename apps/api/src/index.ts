@@ -9,6 +9,12 @@ app.get('/salud', (_req, res) => {
   res.json({ estado: 'ok' })
 })
 
-app.listen(PORT, () => {
-  console.log(`API corriendo en http://localhost:${PORT}`)
-})
+// En desarrollo local corre con su propio servidor;
+// en Vercel el runtime de Node importa el módulo directamente.
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`API corriendo en http://localhost:${PORT}`)
+  })
+}
+
+export default app
