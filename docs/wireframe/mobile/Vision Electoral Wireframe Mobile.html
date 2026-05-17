@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visión Electoral — App Encuestador</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+          --bg:     #F5F7FA;
+          --outer:  #D4D9E2;
+          --border: #D0D5DD;
+          --mid:    #9AA3B0;
+          --text:   #4A5568;
+          --dark:   #1A1A2E;
+          --blue:   #1A3A6B;
+          --font:   system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+          --mono:   'Courier New', Courier, monospace;
+        }
+        body {
+          font-family: var(--font); background: var(--outer);
+          color: var(--dark); font-size: 13px; line-height: 1.45;
+          display: flex; flex-direction: column; align-items: center;
+          min-height: 100vh; padding: 28px 0 48px;
+        }
+        .frame-label {
+          font-size: 11px; color: var(--mid); font-family: var(--mono);
+          margin-bottom: 10px; text-align: center;
+        }
+
+        /* ── Phone frame ──────────────────────────────────────────────────────── */
+        .pframe {
+          width: 375px; height: 720px;
+          border: 2px solid #4A5568; background: var(--bg);
+          display: flex; flex-direction: column;
+          box-shadow: 6px 6px 0 var(--blue); overflow: hidden;
+        }
+        .status-bar {
+          height: 26px; background: var(--blue); flex-shrink: 0;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 14px; font-size: 10px; color: white; font-family: var(--mono);
+        }
+        .pbody { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ── Shared ───────────────────────────────────────────────────────────── */
+        .ph {
+          border: 1.5px dashed var(--mid); background: var(--bg);
+          display: flex; align-items: center; justify-content: center;
+          font-family: var(--mono); font-size: 10px; color: var(--mid);
+          text-align: center; line-height: 1.3;
+        }
+        .shdr {
+          background: white; padding: 11px 14px;
+          border-bottom: 1px solid var(--border);
+          display: flex; align-items: center; justify-content: space-between;
+          position: sticky; top: 0; z-index: 20; flex-shrink: 0;
+        }
+        .shdr h2 { font-size: 14px; font-weight: 700; color: var(--blue); }
+        .shdr .sub { font-size: 10px; color: var(--mid); margin-top: 2px; }
+        .sbody { padding: 12px 14px; }
+        .badge {
+          border: 1px solid var(--mid); padding: 2px 7px;
+          font-size: 10px; font-family: var(--mono); color: var(--text); white-space: nowrap;
+        }
+        .badge.online { border-color: var(--blue); color: var(--blue); }
+        .badge.sync   { border-color: var(--blue); color: var(--blue); }
+        .badge.done   { border-color: var(--mid);  color: var(--text); }
+        .sect {
+          font-size: 10px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .05em; color: var(--blue); margin: 10px 0 7px;
+        }
+        .btn { border: 1.5px solid var(--blue); background: none; color: var(--blue); padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: var(--mono); }
+        .btn.p     { background: var(--blue); color: white; }
+        .btn.sm    { padding: 4px 8px; font-size: 11px; }
+        .btn.w     { width: 100%; text-align: center; }
+        .btn.ghost { border-color: var(--mid); color: var(--mid); }
+        .mt8  { margin-top: 8px; }
+        .mt12 { margin-top: 12px; }
+        .hidden { display: none !important; }
+
+        /* ── Mini dashboard ───────────────────────────────────────────────────── */
+        .dash-banner {
+          background: var(--blue); padding: 14px;
+          display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        .dash-banner-info .name { font-size: 13px; font-weight: 700; color: white; }
+        .dash-banner-info .role { font-size: 10px; color: rgba(255,255,255,.65); margin-top: 2px; }
+        .kgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 12px 14px; }
+        .kcard { background: white; border: 1px solid var(--border); padding: 10px 10px 8px; }
+        .klbl  { font-size: 9px; text-transform: uppercase; letter-spacing: .04em; color: var(--mid); margin-bottom: 4px; }
+        .kval  { font-size: 20px; font-weight: 700; color: var(--blue); font-family: var(--mono); line-height: 1; }
+        .ksub  { font-size: 9px; color: var(--mid); font-family: var(--mono); margin-top: 2px; }
+        .prog-bg   { height: 4px; background: var(--border); margin-top: 6px; }
+        .prog-fill { height: 100%; background: var(--blue); }
+
+        /* Mini bar chart */
+        .mini-chart { background: white; border: 1px solid var(--border); padding: 10px 12px; margin: 0 14px 12px; }
+        .chart-lbl  { font-size: 9px; color: var(--mid); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; font-family: var(--mono); }
+        .bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; }
+        .b    { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; justify-content: flex-end; }
+        .bbar { background: #C8D3E3; width: 100%; border-top: 2px solid var(--mid); }
+        .bbar.hi { background: #9DB5D0; border-top-color: var(--blue); }
+        .bx   { font-size: 8px; color: var(--mid); font-family: var(--mono); }
+
+        /* Survey list cards */
+        .scard {
+          background: white; border: 1px solid var(--border);
+          padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+          width: 100%; text-align: left; font-family: var(--font);
+        }
+        .scard:active { border-color: var(--blue); }
+        .scard:focus { outline: 2px solid var(--blue); outline-offset: 2px; }
+        .scard-t { font-size: 13px; font-weight: 600; color: var(--dark); margin-bottom: 3px; }
+        .scard-m { font-size: 11px; color: var(--mid); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+        .scard-prog { display: flex; align-items: center; gap: 8px; }
+        .scard-prog .prog-bg { flex: 1; }
+        .prog-lbl { font-size: 10px; color: var(--mid); font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
+
+        /* Form progress */
+        .form-progress { padding: 9px 14px; background: white; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .fp-bg   { height: 4px; background: var(--border); margin-bottom: 5px; }
+        .fp-fill { height: 100%; background: var(--blue); }
+        .fp-lbl  { font-size: 10px; color: var(--mid); font-family: var(--mono); }
+
+        /* Question blocks */
+        .qblock { background: white; border: 1px solid var(--border); padding: 12px 14px; margin-bottom: 8px; }
+        .qn  { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--mid); font-family: var(--mono); margin-bottom: 5px; }
+        .qt  { font-size: 12px; font-weight: 600; color: var(--dark); margin-bottom: 10px; line-height: 1.4; }
+        .finput {
+          width: 100%; border: 1px solid var(--border); background: var(--bg);
+          padding: 9px 11px; font-size: 13px; font-family: var(--font); color: var(--dark);
+        }
+        .finput:focus { outline: none; border-color: var(--blue); background: white; }
+        .finput::placeholder { color: var(--mid); }
+        .ftextarea {
+          width: 100%; border: 1px solid var(--border); background: var(--bg);
+          padding: 9px 11px; font-size: 13px; font-family: var(--font);
+          height: 80px; resize: none; color: var(--dark);
+        }
+        .ftextarea:focus { outline: none; border-color: var(--blue); background: white; }
+        .ftextarea::placeholder { color: var(--mid); }
+        .ropts { display: flex; flex-direction: column; gap: 6px; }
+        .ropt {
+          display: flex; align-items: center; gap: 10px;
+          border: 1px solid var(--border); background: var(--bg);
+          padding: 10px 12px; cursor: pointer; font-size: 12px;
+        }
+        .ropt input[type="radio"] { cursor: pointer; accent-color: var(--blue); width: 15px; height: 15px; flex-shrink: 0; }
+        .scale-row { display: flex; gap: 6px; }
+        .scale-btn {
+          flex: 1; border: 1px solid var(--border); background: var(--bg);
+          padding: 10px 6px; text-align: center; font-size: 13px; font-family: var(--mono); cursor: pointer;
+        }
+        .scale-btn.sel { background: var(--blue); color: white; border-color: var(--blue); }
+        .scale-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--mid); font-family: var(--mono); margin-top: 4px; }
+        .form-nav {
+          padding: 10px 14px; background: white; border-top: 1px solid var(--border);
+          display: flex; gap: 8px; flex-shrink: 0;
+        }
+        .form-nav .btn { flex: 1; text-align: center; }
+
+        /* History cards */
+        .hcard {
+          background: white; border: 1px solid var(--border);
+          padding: 10px 14px; margin-bottom: 7px;
+          display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+        }
+        .hcard-t { font-size: 12px; font-weight: 600; color: var(--dark); margin-bottom: 2px; }
+        .hcard-m { font-size: 11px; color: var(--mid); }
+        .sync-banner {
+          background: white; border: 1px solid var(--border);
+          padding: 11px 14px; margin-bottom: 12px;
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        }
+        .sync-txt { font-size: 12px; font-family: var(--mono); }
+        .sync-txt strong { color: var(--blue); }
+
+        /* Profile */
+        .profile-card {
+          background: white; border: 1px solid var(--border);
+          padding: 16px; margin-bottom: 10px;
+          display: flex; align-items: center; gap: 14px;
+        }
+        .stat-row {
+          background: white; border: 1px solid var(--border);
+          padding: 11px 14px; margin-bottom: 7px;
+          display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+        }
+        .stat-row strong { font-family: var(--mono); color: var(--blue); }
+
+        /* Bottom nav */
+        .bnav { height: 56px; background: white; border-top: 1px solid var(--border); display: flex; flex-shrink: 0; }
+        .bni {
+          flex: 1; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; gap: 2px; font-size: 10px; color: var(--mid);
+          cursor: pointer; background: none; border: none; font-family: var(--mono);
+        }
+        .bni.on { color: var(--blue); font-weight: 700; }
+        .bico { font-size: 15px; line-height: 1; }
+
+        /* Screens */
+        .ms { display: none; flex-direction: column; height: 100%; }
+        .ms.on { display: flex; }
+        .ms-scroll { flex: 1; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<div class="frame-label">App Encuestador — Android · 375 px · Offline-first · Solo encuestador</div>
+
+<div class="pframe">
+
+    <!-- Status bar -->
+    <div class="status-bar">
+        <span>9:41</span>
+        <span>● ONLINE</span>
+        <span>🔋 82%</span>
+    </div>
+
+    <div class="pbody">
+
+        <!-- ═══════════════════════════════════════════════════════════
+             INICIO — Mini dashboard + lista de encuestas asignadas
+        ═══════════════════════════════════════════════════════════════ -->
+        <div class="ms on" id="ms-inicio" data-screen-label="01 Inicio">
+
+            <!-- Banner del encuestador -->
+            <div class="dash-banner">
+                <div class="dash-banner-info">
+                    <div class="name">Ana Rodríguez</div>
+                    <div class="role">Encuestadora · Kennedy, Bogotá</div>
+                </div>
+                <span class="badge online">● ONLINE</span>
+            </div>
+
+            <div class="ms-scroll">
+                <!-- KPI cards -->
+                <div class="kgrid">
+                    <div class="kcard">
+                        <div class="klbl">Hoy</div>
+                        <div class="kval">7</div>
+                        <div class="ksub">personas</div>
+                    </div>
+                    <div class="kcard">
+                        <div class="klbl">Meta</div>
+                        <div class="kval">7/15</div>
+                        <div class="prog-bg"><div class="prog-fill" style="width:47%"></div></div>
+                    </div>
+                    <div class="kcard">
+                        <div class="klbl">Total</div>
+                        <div class="kval">87</div>
+                        <div class="ksub">histórico</div>
+                    </div>
+                </div>
+
+                <!-- Mini bar chart: personas encuestadas por día -->
+                <div class="mini-chart">
+                    <div class="chart-lbl">Personas encuestadas — últimos 7 días</div>
+                    <div class="bars">
+                        <div class="b"><div class="bbar"    style="height:60%"></div><div class="bx">L</div></div>
+                        <div class="b"><div class="bbar hi" style="height:85%"></div><div class="bx">M</div></div>
+                        <div class="b"><div class="bbar"    style="height:70%"></div><div class="bx">X</div></div>
+                        <div class="b"><div class="bbar hi" style="height:93%"></div><div class="bx">J</div></div>
+                        <div class="b"><div class="bbar"    style="height:55%"></div><div class="bx">V</div></div>
+                        <div class="b"><div class="bbar"    style="height:40%"></div><div class="bx">S</div></div>
+                        <div class="b"><div class="bbar hi" style="height:47%"></div><div class="bx">D</div></div>
+                    </div>
+                </div>
+
+                <!-- Encuestas asignadas -->
+                <div class="sbody" style="padding-top:0;">
+                    <div class="sect">Encuestas asignadas</div>
+
+                    <button class="scard" onclick="openForm('Encuesta Presidencial 2026','Kennedy, Bogotá')" aria-label="Abrir encuesta Presidencial 2026, Kennedy, Bogotá">
+                        <div class="scard-t">Encuesta Presidencial 2026</div>
+                        <div class="scard-m"><span>Kennedy, Bogotá</span><span class="badge">En progreso</span></div>
+                        <div class="scard-prog">
+                            <div class="prog-bg"><div class="prog-fill" style="width:47%"></div></div>
+                            <span class="prog-lbl">7 / 15 hoy</span>
+                        </div>
+                    </button>
+
+                    <button class="scard" onclick="openForm('Encuesta Local Bogotá','Ciudad Bolívar, Bogotá')" aria-label="Abrir encuesta Local Bogotá, Ciudad Bolívar, Bogotá">
+                        <div class="scard-t">Encuesta Local Bogotá</div>
+                        <div class="scard-m"><span>Ciudad Bolívar, Bogotá</span><span class="badge">En progreso</span></div>
+                        <div class="scard-prog">
+                            <div class="prog-bg"><div class="prog-fill" style="width:30%"></div></div>
+                            <span class="prog-lbl">3 / 10 hoy</span>
+                        </div>
+                    </button>
+
+                    <button class="scard" onclick="openForm('Seguimiento Electoral','Chapinero, Bogotá')" aria-label="Abrir encuesta Seguimiento Electoral, Chapinero, Bogotá">
+                        <div class="scard-t">Seguimiento Electoral</div>
+                        <div class="scard-m"><span>Chapinero, Bogotá</span><span class="badge">Pendiente</span></div>
+                        <div class="scard-prog">
+                            <div class="prog-bg"><div class="prog-fill" style="width:0%"></div></div>
+                            <span class="prog-lbl">0 / 8 hoy</span>
+                        </div>
+                    </button>
+
+
+                </div>
+            </div>
+
+            <!-- Bottom nav (inside this screen so it sticks) -->
+            <div class="bnav">
+                <button class="bni on" id="bn-inicio" onclick="goScreen('ms-inicio','bn-inicio')"><span class="bico">⊞</span>Inicio</button>
+                <button class="bni"    id="bn-hist"   onclick="goScreen('ms-hist','bn-hist')"><span class="bico">☰</span>Historial</button>
+                <button class="bni"    id="bn-prf"    onclick="goScreen('ms-prf','bn-prf')"><span class="bico">○</span>Perfil</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             FORMULARIO DE ENCUESTA — preguntas + campos de respuesta
+        ═══════════════════════════════════════════════════════════════ -->
+        <div class="ms" id="ms-form" data-screen-label="02 Formulario">
+
+            <!-- Header -->
+            <div class="shdr" style="flex-direction:column; align-items:flex-start; gap:2px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                    <h2 id="form-title">Encuesta Presidencial 2026</h2>
+                    <button class="btn sm ghost" onclick="goScreen('ms-inicio','bn-inicio')">← Volver</button>
+                </div>
+                <div class="sub" id="form-zone">Kennedy, Bogotá</div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="form-progress">
+                <div class="fp-bg"><div class="fp-fill" id="fp-fill" style="width:20%"></div></div>
+                <div class="fp-lbl" id="fp-lbl">Paso 1 de 5 — Datos del encuestado</div>
+            </div>
+
+            <!-- Scrollable steps -->
+            <div class="ms-scroll" id="form-scroll">
+
+                <!-- Paso 1: Datos básicos -->
+                <div class="sbody" id="fs-0">
+                    <div class="sect" style="margin-top:4px;">Datos del encuestado</div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 1</div>
+                        <div class="qt">Nombre completo del encuestado</div>
+                        <input class="finput" type="text" placeholder="Ej: Jorge Andrés Palomino">
+                    </div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 2</div>
+                        <div class="qt">Edad</div>
+                        <input class="finput" type="number" placeholder="Ej: 42" min="18" max="99" style="max-width:120px;">
+                    </div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 3</div>
+                        <div class="qt">Barrio de residencia</div>
+                        <input class="finput" type="text" placeholder="Ej: Villa del Prado">
+                    </div>
+                </div>
+
+                <!-- Paso 2: Intención de voto -->
+                <div class="sbody hidden" id="fs-1">
+                    <div class="sect" style="margin-top:4px;">Intención de voto</div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 4</div>
+                        <div class="qt">¿Por cuál candidato votaría si las elecciones fueran hoy?</div>
+                        <div class="ropts">
+                            <label class="ropt"><input type="radio" name="q4"> Candidato A — Partido Liberal</label>
+                            <label class="ropt"><input type="radio" name="q4"> Candidato B — Partido Conservador</label>
+                            <label class="ropt"><input type="radio" name="q4"> Candidato C — Coalición Centro</label>
+                            <label class="ropt"><input type="radio" name="q4"> Candidato D — Movimiento Independiente</label>
+                            <label class="ropt"><input type="radio" name="q4"> Voto en blanco</label>
+                            <label class="ropt"><input type="radio" name="q4"> No sabe / No responde</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paso 3: Problemas prioritarios -->
+                <div class="sbody hidden" id="fs-2">
+                    <div class="sect" style="margin-top:4px;">Problemas prioritarios</div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 5</div>
+                        <div class="qt">¿Cuál es el problema más urgente en su comunidad?</div>
+                        <div class="ropts">
+                            <label class="ropt"><input type="radio" name="q5"> Inseguridad y delincuencia</label>
+                            <label class="ropt"><input type="radio" name="q5"> Falta de empleo</label>
+                            <label class="ropt"><input type="radio" name="q5"> Deficiencia en servicios públicos</label>
+                            <label class="ropt"><input type="radio" name="q5"> Mala infraestructura vial</label>
+                            <label class="ropt"><input type="radio" name="q5"> Acceso a salud y educación</label>
+                            <label class="ropt"><input type="radio" name="q5"> Otro</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paso 4: Percepción de gobierno -->
+                <div class="sbody hidden" id="fs-3">
+                    <div class="sect" style="margin-top:4px;">Percepción de gobierno</div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 6</div>
+                        <div class="qt">¿Cómo califica la gestión del gobierno actual? (1 = Muy mala · 5 = Muy buena)</div>
+                        <div class="scale-row" id="scale-q6">
+                            <button class="scale-btn" onclick="selectScale(this,'scale-q6')">1</button>
+                            <button class="scale-btn" onclick="selectScale(this,'scale-q6')">2</button>
+                            <button class="scale-btn" onclick="selectScale(this,'scale-q6')">3</button>
+                            <button class="scale-btn" onclick="selectScale(this,'scale-q6')">4</button>
+                            <button class="scale-btn" onclick="selectScale(this,'scale-q6')">5</button>
+                        </div>
+                        <div class="scale-labels"><span>Muy mala</span><span>Muy buena</span></div>
+                    </div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 7</div>
+                        <div class="qt">¿Siente que el gobierno local lo representa?</div>
+                        <div class="ropts">
+                            <label class="ropt"><input type="radio" name="q7"> Sí, completamente</label>
+                            <label class="ropt"><input type="radio" name="q7"> Parcialmente</label>
+                            <label class="ropt"><input type="radio" name="q7"> No, para nada</label>
+                            <label class="ropt"><input type="radio" name="q7"> No sabe / No responde</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paso 5: Respuestas abiertas -->
+                <div class="sbody hidden" id="fs-4">
+                    <div class="sect" style="margin-top:4px;">Respuestas abiertas</div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 8</div>
+                        <div class="qt">¿Qué propuesta concreta esperaría de un candidato presidencial?</div>
+                        <textarea class="ftextarea" placeholder="Escriba la respuesta del encuestado..."></textarea>
+                    </div>
+                    <div class="qblock">
+                        <div class="qn">Pregunta 9</div>
+                        <div class="qt">¿Algún comentario adicional?</div>
+                        <textarea class="ftextarea" placeholder="Observaciones o comentarios del encuestado..."></textarea>
+                    </div>
+                    <!-- Nota interna del encuestador -->
+                    <div class="qblock" style="border-style:dashed; border-color:var(--blue);">
+                        <div class="qn" style="color:var(--blue);">Nota interna del encuestador</div>
+                        <div class="qt" style="font-weight:400; font-size:11px; color:var(--mid); margin-bottom:8px;">No visible para analistas. Solo para uso propio.</div>
+                        <textarea class="ftextarea" placeholder="Ej: Persona muy colaboradora, dificultad auditiva..."></textarea>
+                    </div>
+                </div>
+
+            </div><!-- form-scroll -->
+
+            <!-- Form navigation -->
+            <div class="form-nav">
+                <button class="btn hidden" id="btn-prev" onclick="formStep(-1)">← Anterior</button>
+                <button class="btn p" id="btn-next" onclick="formStep(1)">Siguiente →</button>
+                <button class="btn p hidden" id="btn-send" onclick="sendForm()">Guardar y enviar</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             HISTORIAL — encuestas del día + sync
+        ═══════════════════════════════════════════════════════════════ -->
+        <div class="ms" id="ms-hist" data-screen-label="03 Historial">
+            <div class="shdr">
+                <div><h2>Historial</h2><div class="sub">Encuestas del día · 14 may 2026</div></div>
+                <span class="badge">7 completadas</span>
+            </div>
+            <div class="ms-scroll">
+                <div class="sbody">
+                    <div class="sync-banner">
+                        <span class="sync-txt"><strong>2 encuestas</strong> pendientes de sincronización</span>
+                        <button class="btn sm p" id="sync-btn" onclick="doSync()">↑ Sync</button>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Jorge Andrés Palomino</div><div class="hcard-m">Presidencial 2026 · 14:32</div></div>
+                        <span class="badge done">Sincronizada</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Luz Marina Ríos</div><div class="hcard-m">Presidencial 2026 · 13:50</div></div>
+                        <span class="badge done">Sincronizada</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Hernán Castillo</div><div class="hcard-m">Presidencial 2026 · 13:15</div></div>
+                        <span class="badge done">Sincronizada</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Carmen Díaz</div><div class="hcard-m">Local Bogotá · 12:48</div></div>
+                        <span class="badge done">Sincronizada</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">William Torres</div><div class="hcard-m">Local Bogotá · 12:10</div></div>
+                        <span class="badge done">Sincronizada</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Patricia Mena</div><div class="hcard-m">Presidencial 2026 · 11:32</div></div>
+                        <span class="badge sync">Pendiente</span>
+                    </div>
+                    <div class="hcard">
+                        <div><div class="hcard-t">Ricardo Ospina</div><div class="hcard-m">Presidencial 2026 · 10:55</div></div>
+                        <span class="badge sync">Pendiente</span>
+                    </div>
+                    <div style="text-align:center; padding:16px 0; font-size:10px; color:var(--mid); font-family:var(--mono);">— Fin del registro de hoy —</div>
+                </div>
+            </div>
+            <div class="bnav">
+                <button class="bni"    id="bnh-inicio" onclick="goScreen('ms-inicio','bn-inicio')"><span class="bico">⊞</span>Inicio</button>
+                <button class="bni on" id="bnh-hist"   onclick="goScreen('ms-hist','bn-hist')"><span class="bico">☰</span>Historial</button>
+                <button class="bni"    id="bnh-prf"    onclick="goScreen('ms-prf','bn-prf')"><span class="bico">○</span>Perfil</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             PERFIL — estadísticas personales
+        ═══════════════════════════════════════════════════════════════ -->
+        <div class="ms" id="ms-prf" data-screen-label="04 Perfil">
+            <div class="shdr"><h2>Perfil</h2></div>
+            <div class="ms-scroll">
+                <div class="sbody">
+                    <div class="profile-card">
+                        <div class="ph" style="width:52px; height:52px; flex-shrink:0; font-size:9px;">[AV]</div>
+                        <div>
+                            <div style="font-weight:700; font-size:14px;">Ana Rodríguez</div>
+                            <span class="badge" style="display:inline-block; margin-top:4px;">ENCUESTADORA</span>
+                            <div style="font-size:11px; color:var(--mid); margin-top:4px;"><a href="mailto:ana.rodriguez@visionelectoral.co">ana.rodriguez@visionelectoral.co</a></div>
+                        </div>
+                    </div>
+                    <div class="sect">Estadísticas personales</div>
+                    <div class="stat-row"><span>Personas encuestadas hoy</span><strong>7</strong></div>
+                    <div class="stat-row"><span>Meta diaria</span><strong>7 / 15</strong></div>
+                    <div class="stat-row"><span>Total histórico</span><strong>87</strong></div>
+                    <div class="stat-row"><span>Tasa completitud</span><strong>98%</strong></div>
+                    <div class="sect">Dispositivo y sincronización</div>
+                    <div class="stat-row"><span>Modo offline</span><strong>Activo</strong></div>
+                    <div class="stat-row"><span>Última sincronización</span><strong>hace 12 min</strong></div>
+                    <div class="stat-row"><span>Cola pendiente</span><strong>2 encuestas</strong></div>
+                    <button class="btn w mt12" style="border-color:var(--mid); color:var(--mid);">← Cerrar sesión</button>
+                </div>
+            </div>
+            <div class="bnav">
+                <button class="bni"    id="bnp-inicio" onclick="goScreen('ms-inicio','bn-inicio')"><span class="bico">⊞</span>Inicio</button>
+                <button class="bni"    id="bnp-hist"   onclick="goScreen('ms-hist','bn-hist')"><span class="bico">☰</span>Historial</button>
+                <button class="bni on" id="bnp-prf"    onclick="goScreen('ms-prf','bn-prf')"><span class="bico">○</span>Perfil</button>
+            </div>
+        </div>
+
+    </div><!-- pbody -->
+</div><!-- pframe -->
+
+<script>
+    // ─── STATE ────────────────────────────────────────────────────────────────
+    var fStep = 0, fTotal = 5;
+    var STEP_LABELS = [
+      'Paso 1 de 5 — Datos del encuestado',
+      'Paso 2 de 5 — Intención de voto',
+      'Paso 3 de 5 — Problemas prioritarios',
+      'Paso 4 de 5 — Percepción de gobierno',
+      'Paso 5 de 5 — Respuestas abiertas'
+    ];
+
+    // ─── SCREEN NAV ───────────────────────────────────────────────────────────
+    function goScreen(id, navId) {
+      document.querySelectorAll('.ms').forEach(function(s){ s.classList.remove('on'); });
+      var el = document.getElementById(id);
+      if (el) el.classList.add('on');
+      // reset form scroll
+      var fs = document.getElementById('form-scroll');
+      if (fs) fs.scrollTop = 0;
+    }
+
+    // ─── OPEN FORM ────────────────────────────────────────────────────────────
+    function openForm(title, zone) {
+      document.getElementById('form-title').textContent = title;
+      document.getElementById('form-zone').textContent  = zone;
+      fStep = 0;
+
+      // Clear all form inputs and state to prevent data leak
+      var formEl = document.getElementById('ms-form');
+      if (formEl) {
+        // Reset text inputs
+        formEl.querySelectorAll('input[type="text"], input[type="number"]').forEach(function(inp) {
+          inp.value = '';
+        });
+        // Reset textareas
+        formEl.querySelectorAll('textarea').forEach(function(ta) {
+          ta.value = '';
+        });
+        // Uncheck all radios
+        formEl.querySelectorAll('input[type="radio"]').forEach(function(r) {
+          r.checked = false;
+        });
+        // Reset scale buttons
+        formEl.querySelectorAll('.scale-btn').forEach(function(sb) {
+          sb.classList.remove('sel');
+        });
+      }
+
+      renderStep();
+      document.querySelectorAll('.ms').forEach(function(s){ s.classList.remove('on'); });
+      document.getElementById('ms-form').classList.add('on');
+      document.getElementById('form-scroll').scrollTop = 0;
+    }
+
+    // ─── FORM STEP ────────────────────────────────────────────────────────────
+    function formStep(dir) {
+      fStep = Math.max(0, Math.min(fTotal - 1, fStep + dir));
+      renderStep();
+      document.getElementById('form-scroll').scrollTop = 0;
+    }
+    function renderStep() {
+      for (var i = 0; i < fTotal; i++) {
+        var el = document.getElementById('fs-' + i);
+        if (!el) continue;
+        el.classList.toggle('hidden', i !== fStep);
+      }
+      var pct = ((fStep + 1) / fTotal) * 100;
+      document.getElementById('fp-fill').style.width = pct + '%';
+      document.getElementById('fp-lbl').textContent  = STEP_LABELS[fStep];
+      var last = (fStep === fTotal - 1);
+      document.getElementById('btn-prev').classList.toggle('hidden', fStep === 0);
+      document.getElementById('btn-next').classList.toggle('hidden', last);
+      document.getElementById('btn-send').classList.toggle('hidden', !last);
+    }
+
+    // ─── SEND FORM ────────────────────────────────────────────────────────────
+    function sendForm() {
+      goScreen('ms-hist', 'bn-hist');
+    }
+
+    // ─── SCALE ────────────────────────────────────────────────────────────────
+    function selectScale(btn, groupId) {
+      document.getElementById(groupId).querySelectorAll('.scale-btn')
+        .forEach(function(b){ b.classList.remove('sel'); });
+      btn.classList.add('sel');
+    }
+
+    // ─── SYNC MOCK ────────────────────────────────────────────────────────────
+    function doSync() {
+      var btn = document.getElementById('sync-btn');
+      btn.textContent = '✓ Listo';
+      setTimeout(function(){ btn.textContent = '↑ Sync'; }, 1800);
+    }
+
+    // ─── INIT ─────────────────────────────────────────────────────────────────
+    renderStep();
+</script>
+</body>
+</html>
