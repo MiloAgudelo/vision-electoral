@@ -37,7 +37,7 @@ Diseño de datos para las tres capas del sistema: backend (MongoDB Atlas), app m
 
 ## Diagrama de relaciones
 
-```
+```text
                           ┌──────────────┐
                           │    users     │
                           │ (roles, zona)│
@@ -61,7 +61,7 @@ Diseño de datos para las tres capas del sistema: backend (MongoDB Atlas), app m
 
 Mobile (espejo mínimo):
 
-```
+```text
 templates_cache  ───┐
                     │  (referenciado por template_id)
 responses (cola) ◄──┘
@@ -84,6 +84,7 @@ Cinco colecciones.
 | `name` | `string` | |
 | `role` | `enum` | `encuestador` \| `analista` \| `administrador` |
 | `zone_id` | `ObjectId?` | zona asignada (encuestador y analista; administrador no tiene zona) |
+| `active` | `boolean` | `true` por defecto; `false` para suspender acceso sin eliminar el registro |
 | `created_at`, `updated_at` | `Date` | |
 
 **Índices**: `firebase_uid` único, `email` único, `role`.
@@ -96,6 +97,7 @@ Cada zona representa una universidad. Encuestadores y analistas están asignados
 |---|---|---|
 | `_id` | `ObjectId` | |
 | `name` | `string` | nombre de la universidad; único |
+| `active` | `boolean` | `true` por defecto; permite desactivar una universidad sin eliminarla |
 | `created_at` | `Date` | |
 
 **Índices**: `name` único.
@@ -137,7 +139,7 @@ Cada zona representa una universidad. Encuestadores y analistas están asignados
 
 **Ciclo de vida:**
 
-```
+```text
 borrador ──→ abierta ──→ cerrada ──→ archivada
                  ↑____________│
 ```
@@ -247,7 +249,7 @@ email         TEXT
 name          TEXT
 role          TEXT
 jwt_token     TEXT
-zone_id       TEXT    -- nullable: analista y administrador no tienen zona asignada
+zone_id       TEXT    -- nullable: solo administrador no tiene zona asignada
 ```
 
 **Datos solo locales** (no viajan al servidor): `sync_status`, `sync_attempts`, `last_error`, `server_synced_at`, `jwt_token`.
@@ -299,7 +301,7 @@ zone_id       TEXT    -- nullable: analista y administrador no tienen zona asign
 Garantizada por el índice único en `survey_responses.submission_id`. Procedimiento del servidor:
 
 1. `insertMany(..., { ordered: false })` — intenta insertar todo el lote.
-2. Por cada error `E11000` (duplicate key), **cargar el documento existente** y compararlo con el payload entrante en los campos `template_id`, `surveyor_uid`, `zone_id`, `captured_at` y hash de `answers`.
+2. Por cada error `E11000` (duplicate key), **cargar el documento existente** y compararlo con el payload entrante. Nota: el payload trae `surveyor_uid` (firebase UID string), pero `survey_responses` almacena `surveyor_id` (ObjectId); el service debe resolver `surveyor_uid → ObjectId` antes de comparar. Campos a comparar: `template_id`, `surveyor_id`, `zone_id`, `captured_at` y hash de `answers`.
    - **Si coinciden** → la fila va a `duplicated` (reintento legítimo del mobile; ya estaba guardada).
    - **Si difieren** → la fila va a `rejected` con razón `"submission_id_conflict"`. Esto solo puede ocurrir si el cliente reusó un UUID v4 (bug) o si alguien manipuló el payload. **No** se sobrescribe el documento existente.
 
