@@ -1,15 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "src/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "src/index.ts"
-    }
-  ]
+  "framework": "express",
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter api build"
 }
