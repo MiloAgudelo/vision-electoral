@@ -1,5 +1,7 @@
 # Visión Electoral
 
+![Visión Electoral](https://vision-electoral.vercel.app/og-image.jpg)
+
 Sistema integral de encuestas de campo aplicado al contexto electoral. Permite a encuestadores recopilar datos en terreno desde dispositivos Android (con soporte offline), sincronizarlos con un servidor central y visualizar análisis estadísticos en tiempo real desde una plataforma web.
 
 ---
